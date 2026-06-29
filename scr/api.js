@@ -1,4 +1,4 @@
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_URL ?? 'https://crm-pro-backend.fly.dev/api';
 
 function getToken() {
   return localStorage.getItem('crm_token');
@@ -119,7 +119,7 @@ export const api = {
     const token = localStorage.getItem('crm_token');
     const formData = new FormData();
     for (const file of files) formData.append('files', file);
-    return fetch(`/api/attachments/${contactId}`, {
+    return fetch(`${BASE}/attachments/${contactId}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
@@ -128,7 +128,7 @@ export const api = {
   deleteAttachment: (id) => request('DELETE', `/attachments/${id}`),
   getAttachmentUrl: (filename) => {
     const token = localStorage.getItem('crm_token');
-    return `/api/attachments/file/${filename}?token=${token}`;
+    return `${BASE}/attachments/file/${filename}?token=${token}`;
   },
 
   // WhatsApp direct (whatsapp-web.js)
@@ -138,6 +138,6 @@ export const api = {
   // SSE stream — retourne un EventSource (pas un fetch)
   whatsAppStatusStream: () => {
     const token = localStorage.getItem('crm_token');
-    return new EventSource(`/api/messaging/whatsapp/status/stream?token=${token}`);
+    return new EventSource(`${BASE}/messaging/whatsapp/status/stream?token=${token}`);
   },
 };
