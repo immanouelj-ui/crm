@@ -8,7 +8,7 @@ import {
 import { api } from '../api.js';
 import {
   Plus, Trash2, Download, Upload, Settings2, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone,
 } from 'lucide-react';
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
@@ -649,7 +649,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
 
           return (
             <div
-              className="min-h-[22px] flex items-center group/cell relative"
+              className="min-h-[22px] flex items-center gap-1.5 group/cell relative"
               onDoubleClick={(e) => { e.stopPropagation(); setEditingCell({ rowId: contactId, fieldName: field.name }); }}
             >
               {(val === null || val === undefined || val === '') ? (
@@ -657,7 +657,18 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
                   Double-clic pour éditer
                 </span>
               ) : (
-                <CellDisplay value={val} field={field} />
+                <>
+                  <CellDisplay value={val} field={field} />
+                  {field.type === 'phone' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: val } })); }}
+                      className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
+                      title="Appeler via Twilio"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-indigo-500" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           );

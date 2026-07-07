@@ -13,6 +13,9 @@ export default function Softphone() {
   const deviceRef = useRef(null);
   const callRef = useRef(null);
   const timerRef = useRef(null);
+  const statusRef = useRef('idle');
+
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   useEffect(() => {
     api.getTwilioStatus().then(s => setAvailable(!!s.connected)).catch(() => {});
@@ -20,8 +23,11 @@ export default function Softphone() {
 
   useEffect(() => {
     function onCallNumber(e) {
-      setNumber(e.detail?.number || '');
+      const num = e.detail?.number || '';
+      if (!num || statusRef.current === 'calling' || statusRef.current === 'in-call') return;
+      setNumber(num);
       setOpen(true);
+      handleCall(num);
     }
     window.addEventListener('crm:call-number', onCallNumber);
     return () => window.removeEventListener('crm:call-number', onCallNumber);
@@ -60,13 +66,14 @@ export default function Softphone() {
     timerRef.current = null;
   }
 
-  async function handleCall() {
-    if (!number) return;
+  async function handleCall(dialNumber) {
+    const target = dialNumber ?? number;
+    if (!target) return;
     setError('');
     try {
       const device = await ensureDevice();
       setStatus('calling');
-      const call = await device.connect({ params: { To: number } });
+      const call = await device.connect({ params: { To: target } });
       callRef.current = call;
       call.on('accept', () => { setStatus('in-call'); startTimer(); });
       call.on('disconnect', handleHangupCleanup);
@@ -173,7 +180,7 @@ export default function Softphone() {
             </>
           ) : (
             <button
-              onClick={handleCall}
+              onClick={() => handleCall()}
               disabled={!number || status === 'registering'}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 text-white text-sm font-medium rounded-xl hover:bg-emerald-600 disabled:opacity-50 transition-colors"
             >
