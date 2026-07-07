@@ -198,16 +198,15 @@ export default function Softphone() {
   const inCall = status === 'calling' || status === 'in-call';
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="w-80 bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white">
-          <p className="text-sm font-medium">Téléphone</p>
-          <button onClick={() => !inCall && setOpen(false)} className="text-white/80 hover:text-white disabled:opacity-30" disabled={inCall}>
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <div className="fixed bottom-6 right-6 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50">
+      <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white cursor-move">
+        <p className="text-sm font-medium">Téléphone</p>
+        <button onClick={() => !inCall && setOpen(false)} className="text-white/80 hover:text-white disabled:opacity-30" disabled={inCall} title={inCall ? 'Raccrochez avant de fermer' : 'Fermer'}>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-        <div className="p-5 space-y-4">
+      <div className="p-5 space-y-4">
           <div className="text-center py-2">
             {status === 'in-call' ? (
               <>
@@ -307,7 +306,6 @@ export default function Softphone() {
             </button>
           )}
         </div>
-      </div>
     </div>
   );
 }
