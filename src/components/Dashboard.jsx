@@ -125,9 +125,9 @@ export default function Dashboard({ onNavigate, onSelectContact }) {
           </div>
           <div className="divide-y divide-slate-50">
             {(data?.recentContacts || []).slice(0, 8).map(c => {
-              const name = c.custom_data?.name || `Contact #${c.id}`;
+              const name = c.custom_data?.nom || c.custom_data?.name || `Contact #${c.id}`;
               const company = c.custom_data?.company || '';
-              const status = c.custom_data?.status;
+              const status = c.custom_data?.statut || c.custom_data?.status;
               return (
                 <div
                   key={c.id}

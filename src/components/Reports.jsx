@@ -149,7 +149,7 @@ export default function Reports() {
   // Status distribution
   const statusCounts = {};
   contacts.forEach(c => {
-    const s = c.custom_data?.status || 'Inactif';
+    const s = c.custom_data?.statut || c.custom_data?.status || 'Inactif';
     statusCounts[s] = (statusCounts[s] || 0) + 1;
   });
   const statusData = Object.entries(statusCounts).map(([label, value]) => ({

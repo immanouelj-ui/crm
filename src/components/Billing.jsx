@@ -30,6 +30,21 @@ function Badge({ status }) {
   const s = STATUS[status] || { label: status, cls: 'bg-slate-100 text-slate-600' };
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>;
 }
+
+const B2B_STATUS = {
+  submitted:  { label: '📤 Soumise',       cls: 'bg-blue-50 text-blue-600 border border-blue-200' },
+  delivered:  { label: '✅ Livrée',        cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  accepted:   { label: '✅ Acceptée',      cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  rejected:   { label: '❌ Rejetée',       cls: 'bg-red-50 text-red-600 border border-red-200' },
+  error:      { label: '⚠️ Erreur',        cls: 'bg-orange-50 text-orange-600 border border-orange-200' },
+  processing: { label: '⏳ En cours',      cls: 'bg-amber-50 text-amber-600 border border-amber-200' },
+  paid:       { label: '💶 Payée',         cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+};
+function B2BRouterBadge({ status }) {
+  if (!status) return null;
+  const s = B2B_STATUS[status] || { label: `B2B: ${status}`, cls: 'bg-slate-50 text-slate-500 border border-slate-200' };
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`} title="Statut B2BRouter">{s.label}</span>;
+}
 const fmt = n => (n||0).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €';
 const fmtDate = s => s ? new Date(s).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 const today = () => new Date().toISOString().split('T')[0];
@@ -943,13 +958,29 @@ export default function Billing({ pendingDoc, onPendingDocConsumed }) {
                     <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(inv.issue_date)}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(inv.due_date||inv.valid_until)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-700">{fmt(inv.total_ttc)}</td>
-                    <td className="px-4 py-3"><Badge status={inv.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <Badge status={inv.status} />
+                        {inv.b2brouter_status && <B2BRouterBadge status={inv.b2brouter_status} />}
+                      </div>
+                    </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
                         {inv.type==='quote' && inv.status!=='converted' && (
                           <button onClick={async e => { e.stopPropagation(); if(!window.confirm('Convertir en facture ?')) return; const r = await apiFetch('POST',`/invoices/${inv.id}/convert`); await load(); setCurrent(r); setView('edit'); }}
                             title="Convertir en facture" className="p-1.5 text-slate-400 hover:text-indigo-600 rounded transition-colors">
                             <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
+                        {inv.type==='invoice' && inv.b2brouter_status && (
+                          <button onClick={async e => {
+                            e.stopPropagation();
+                            try {
+                              await apiFetch('GET', `/invoices/${inv.id}/b2brouter-status`);
+                              await load();
+                            } catch(err) { alert(err.message); }
+                          }} title="Rafraîchir statut B2BRouter" className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors">
+                            <RefreshCw className="w-4 h-4" />
                           </button>
                         )}
                         <a href={`${BASE}/invoices/${inv.id}/pdf?token=${tok()}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}

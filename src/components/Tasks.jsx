@@ -28,7 +28,7 @@ function TaskRow({ task, onToggle, onDelete, contacts }) {
   const isOverdue = getGroup(task) === 'overdue';
   const isToday = getGroup(task) === 'today';
   const contact = contacts.find(c => c.id === task.contact_id);
-  const contactName = contact?.custom_data?.name;
+  const contactName = contact?.custom_data?.nom || contact?.custom_data?.name;
 
   return (
     <div className={`flex items-center gap-3 py-3 px-4 border-b border-slate-50 last:border-b-0 group hover:bg-slate-50/50 transition-colors ${task.done ? 'opacity-50' : ''}`}>
@@ -155,12 +155,13 @@ export default function Tasks() {
   }
 
   const filteredContacts = contacts.filter(c => {
-    const name = c.custom_data?.name || '';
+    const name = c.custom_data?.nom || c.custom_data?.name || '';
     return name.toLowerCase().includes(contactSearch.toLowerCase());
   }).slice(0, 5);
 
   const selectedContactName = newTask.contact_id
-    ? contacts.find(c => c.id === parseInt(newTask.contact_id))?.custom_data?.name
+    ? (contacts.find(c => c.id === parseInt(newTask.contact_id))?.custom_data?.nom ||
+       contacts.find(c => c.id === parseInt(newTask.contact_id))?.custom_data?.name)
     : null;
 
   if (loading) {
@@ -330,7 +331,7 @@ export default function Tasks() {
                           onClick={() => { setNewTask(p => ({ ...p, contact_id: c.id })); setContactSearch(''); }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors"
                         >
-                          {c.custom_data?.name || `Contact #${c.id}`}
+                          {c.custom_data?.nom || c.custom_data?.name || `Contact #${c.id}`}
                         </button>
                       ))}
                     </div>

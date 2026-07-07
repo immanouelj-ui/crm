@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://crm-pro-backend.fly.dev',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       }
     }

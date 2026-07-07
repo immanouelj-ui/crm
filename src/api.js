@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'https://crm-pro-backend.fly.dev/api';
+const BASE = '/api';
 
 function getToken() {
   return localStorage.getItem('crm_token');
@@ -17,7 +17,7 @@ async function request(method, path, body) {
   const opts = { method, headers: headers() };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE}${path}`, opts);
-  if (res.status === 401) {
+  if (res.status === 401 && !path.includes('/auth/')) {
     localStorage.removeItem('crm_token');
     window.location.href = '/';
     return;
@@ -119,7 +119,7 @@ export const api = {
     const token = localStorage.getItem('crm_token');
     const formData = new FormData();
     for (const file of files) formData.append('files', file);
-    return fetch(`${BASE}/attachments/${contactId}`, {
+    return fetch(`/api/attachments/${contactId}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
@@ -128,8 +128,36 @@ export const api = {
   deleteAttachment: (id) => request('DELETE', `/attachments/${id}`),
   getAttachmentUrl: (filename) => {
     const token = localStorage.getItem('crm_token');
-    return `${BASE}/attachments/file/${filename}?token=${token}`;
+    return `/api/attachments/file/${filename}?token=${token}`;
   },
+
+  // Appointments
+  getContactAppointments: (contactId) => request('GET', `/appointments/contact/${contactId}`),
+  getAppointments: (weekStart) => request('GET', `/appointments?week_start=${weekStart}`),
+  createAppointment: (data) => request('POST', '/appointments', data),
+  updateAppointment: (id, data) => request('PUT', `/appointments/${id}`, data),
+  deleteAppointment: (id) => request('DELETE', `/appointments/${id}`),
+  getPendingCount: () => request('GET', '/appointments/pending-count'),
+  getAvailability: () => request('GET', '/appointments/availability'),
+  createAvailabilitySlot: (data) => request('POST', '/appointments/availability', data),
+  deleteAvailabilitySlot: (id) => request('DELETE', `/appointments/availability/${id}`),
+
+  // Team
+  getTeam: () => request('GET', '/team'),
+  createEmployee: (data) => request('POST', '/team', data),
+  updateEmployee: (id, data) => request('PUT', `/team/${id}`, data),
+  deleteEmployee: (id) => request('DELETE', `/team/${id}`),
+
+  // Automations
+  getAutomations: () => request('GET', '/automations'),
+  createAutomation: (data) => request('POST', '/automations', data),
+  updateAutomation: (id, data) => request('PUT', `/automations/${id}`, data),
+  deleteAutomation: (id) => request('DELETE', `/automations/${id}`),
+  simulateAutomation: (id) => request('POST', `/automations/${id}/simulate`),
+  runAutomation: (id) => request('POST', `/automations/${id}/run`),
+
+  // B2BRouter
+  getB2BrouterStatus: (id) => request('GET', `/invoices/${id}/b2brouter-status`),
 
   // WhatsApp direct (whatsapp-web.js)
   getWhatsAppStatus: () => request('GET', '/messaging/whatsapp/status'),
@@ -138,6 +166,6 @@ export const api = {
   // SSE stream — retourne un EventSource (pas un fetch)
   whatsAppStatusStream: () => {
     const token = localStorage.getItem('crm_token');
-    return new EventSource(`${BASE}/messaging/whatsapp/status/stream?token=${token}`);
+    return new EventSource(`/api/messaging/whatsapp/status/stream?token=${token}`);
   },
 };

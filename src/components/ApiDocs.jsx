@@ -57,7 +57,7 @@ export default function ApiDocs() {
   }
 
   const apiKey = user?.api_key || 'VOTRE_CLE_API';
-  const endpoint = 'http://localhost:3001/api/public/leads';
+  const endpoint = `${window.location.origin}/api/public/leads`;
 
   const curlExample = `curl -X POST ${endpoint} \\
   -H "X-API-Key: ${apiKey}" \\

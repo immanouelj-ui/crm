@@ -164,7 +164,7 @@ function EmailModal({ contact, fields, onClose, onSent }) {
   }
 
   const cd = contact?.custom_data || {};
-  const name = cd.name || `Contact #${contact?.id}`;
+  const name = cd.nom || cd.name || `Contact #${contact?.id}`;
   const sizeWarn = totalSize() > MAX_BYTES;
 
   return (
@@ -418,7 +418,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   }
 
   const cd = contact?.custom_data || {};
-  const name = cd.name || `Contact #${contact?.id}`;
+  const name = cd.nom || cd.name || `Contact #${contact?.id}`;
   const isConnected = waStatus === 'connected';
 
   return (

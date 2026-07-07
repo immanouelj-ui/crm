@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api.js';
+import { useAuth } from '../App.jsx';
 import {
   ChevronLeft, Phone, Mail, Building2, Calendar, Clock,
   TrendingUp, CheckSquare, MoreVertical, Trash2, Plus, Check,
-  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2,
+  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays,
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
@@ -595,25 +596,153 @@ function AddTaskForm({ contactId, onCreated, onCancel }) {
 
 // ─── Main ContactPage ─────────────────────────────────────────────────────────
 
+// ─── RDV Modal ────────────────────────────────────────────────────────────────
+function AppointmentModal({ contactId, contactName, onCreated, onClose }) {
+  const [form, setForm] = useState({
+    title: '',
+    date: new Date().toISOString().split('T')[0],
+    start_time: '09:00',
+    end_time: '09:30',
+    notes: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const appt = await api.createAppointment({ ...form, contact_id: contactId });
+      onCreated(appt);
+      onClose();
+    } catch (err) { setError(err.message); setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-bold text-gray-800">Nouveau RDV — {contactName}</h2>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
+          </div>
+          <form onSubmit={submit} className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Titre</label>
+              <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))}
+                placeholder="RDV commercial, Appel découverte…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input type="date" value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"/>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Début</label>
+                <input type="time" value={form.start_time} onChange={e => setForm(f=>({...f,start_time:e.target.value}))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"/>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fin</label>
+                <input type="time" value={form.end_time} onChange={e => setForm(f=>({...f,end_time:e.target.value}))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"/>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <textarea value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))}
+                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"/>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                Annuler
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {loading ? '…' : 'Créer le RDV'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini RDV form (sidebar inline) ──────────────────────────────────────────
+function AddAppointmentForm({ contactId, contactName, onCreated, onCancel }) {
+  const [form, setForm] = useState({
+    title: '',
+    date: new Date().toISOString().split('T')[0],
+    start_time: '09:00',
+    end_time: '09:30',
+    notes: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const [error, setError] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const appt = await api.createAppointment({ ...form, contact_id: contactId });
+      onCreated(appt);
+    } catch (err) { setError(err.message); setLoading(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-slate-50 rounded-xl p-3 mb-3 space-y-2">
+      <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))}
+        placeholder="Titre du RDV" className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
+      <input type="date" value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))}
+        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
+      <div className="flex gap-2">
+        <input type="time" value={form.start_time} onChange={e => setForm(f=>({...f,start_time:e.target.value}))}
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
+        <input type="time" value={form.end_time} onChange={e => setForm(f=>({...f,end_time:e.target.value}))}
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={onCancel} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
+        <button type="submit" disabled={loading} className="flex-1 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+          {loading ? '…' : 'Créer le RDV'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function ContactPage({ contactId, onBack, onNavigate, onNewBillingDoc }) {
+  const { user } = useAuth();
+  const canMessage = user?.role === 'admin' || user?.permissions?.messaging !== false;
   const [contact, setContact] = useState(null);
   const [fields, setFields] = useState([]);
   const [interactions, setInteractions] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showAddAppt, setShowAddAppt] = useState(false); // inline sidebar form
+  const [showApptModal, setShowApptModal] = useState(false); // modal (topbar button)
   const [showMenu, setShowMenu] = useState(false);
   const [sendModal, setSendModal] = useState(null); // null | { type: 'email'|'whatsapp' }
 
   const loadData = useCallback(async () => {
-    const [contactList, fieldList, ints, ts, opps] = await Promise.all([
+    const [contactList, fieldList, ints, ts, opps, appts] = await Promise.all([
       api.getContacts(),
       api.getFields(),
       api.getContactInteractions(contactId),
       api.getContactTasks(contactId),
       api.getOpportunities(),
+      api.getContactAppointments(contactId),
     ]);
     const c = contactList.find(x => x.id === contactId);
     setContact(c);
@@ -621,6 +750,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     setInteractions(ints);
     setTasks(ts);
     setOpportunities(opps.filter(o => o.contact_id === contactId));
+    setAppointments(appts);
     setLoading(false);
   }, [contactId]);
 
@@ -672,7 +802,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   }
 
   const cd = contact.custom_data || {};
-  const name = cd.name || `Contact #${contact.id}`;
+  const name = cd.nom || cd.name || `Contact #${contact.id}`;
   const statusBadge = STATUS_BADGE[cd.statut] || STATUS_BADGE[cd.status] || 'bg-slate-100 text-slate-600';
   const statusVal = cd.statut || cd.status;
 
@@ -719,6 +849,15 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
 
         <div className="flex-1" />
 
+        {/* RDV button */}
+        <button
+          onClick={() => setShowApptModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-violet-50 text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors"
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          RDV
+        </button>
+
         {/* Billing buttons */}
         {onNewBillingDoc && (
           <>
@@ -754,20 +893,24 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
             </a>
           );
         })()}
-        <button
-          onClick={() => setSendModal({ type: 'email' })}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-        >
-          <Mail className="w-3.5 h-3.5" />
-          Email
-        </button>
-        <button
-          onClick={() => setSendModal({ type: 'whatsapp' })}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#25D366]/10 text-[#1a9e4c] border border-[#25D366]/30 rounded-lg hover:bg-[#25D366]/20 transition-colors"
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          WhatsApp
-        </button>
+        {canMessage && (
+          <button
+            onClick={() => setSendModal({ type: 'email' })}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Email
+          </button>
+        )}
+        {canMessage && (
+          <button
+            onClick={() => setSendModal({ type: 'whatsapp' })}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#25D366]/10 text-[#1a9e4c] border border-[#25D366]/30 rounded-lg hover:bg-[#25D366]/20 transition-colors"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            WhatsApp
+          </button>
+        )}
         <div className="relative">
           <button
             onClick={() => setShowMenu(m => !m)}
@@ -946,6 +1089,19 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           </div>
         </div>
 
+        {/* ── RDV modal (topbar button) ── */}
+        {showApptModal && (
+          <AppointmentModal
+            contactId={contactId}
+            contactName={name}
+            onCreated={appt => {
+              setAppointments(prev => [appt, ...prev]);
+              api.getContactInteractions(contactId).then(setInteractions).catch(() => {});
+            }}
+            onClose={() => setShowApptModal(false)}
+          />
+        )}
+
         {/* ── Send message modal ── */}
         {sendModal && (
           <SendMessageModal
@@ -1037,6 +1193,72 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           </div>
 
           <div className="border-t border-slate-100 mb-6 mt-6" />
+
+          {/* RDV */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">RDV</p>
+                {appointments.filter(a => a.status !== 'cancelled').length > 0 && (
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                    {appointments.filter(a => a.status !== 'cancelled').length}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setShowAddAppt(true)}
+                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                <Plus className="w-3.5 h-3.5" /> Ajouter
+              </button>
+            </div>
+
+            {showAddAppt && (
+              <AddAppointmentForm
+                contactId={contactId}
+                contactName={name}
+                onCreated={appt => {
+                  setAppointments(prev => [appt, ...prev]);
+                  setShowAddAppt(false);
+                  // Recharger les interactions pour afficher la note auto générée par le backend
+                  api.getContactInteractions(contactId).then(setInteractions).catch(() => {});
+                }}
+                onCancel={() => setShowAddAppt(false)}
+              />
+            )}
+
+            {appointments.length === 0 && !showAddAppt && (
+              <p className="text-xs text-slate-400 italic">Aucun RDV</p>
+            )}
+
+            <div className="space-y-2">
+              {appointments.map(appt => {
+                const isPast = new Date(`${appt.date}T${appt.end_time}`) < new Date();
+                const statusColor = appt.status === 'confirmed' ? 'border-indigo-200 bg-indigo-50' :
+                  appt.status === 'pending' ? 'border-amber-200 bg-amber-50' :
+                  'border-gray-200 bg-gray-50 opacity-60';
+                const statusDot = appt.status === 'confirmed' ? 'bg-indigo-500' :
+                  appt.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400';
+                return (
+                  <div key={appt.id} className={`rounded-xl border p-2.5 ${statusColor}`}>
+                    <div className="flex items-start gap-2">
+                      <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${statusDot}`}/>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-700 truncate">{appt.title || 'RDV'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {new Date(appt.date).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
+                          {' · '}{appt.start_time}–{appt.end_time}
+                        </p>
+                        {appt.status === 'pending' && <p className="text-xs text-amber-600 mt-0.5">En attente de confirmation</p>}
+                        {isPast && appt.status === 'confirmed' && <p className="text-xs text-slate-400 mt-0.5">Passé</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 mb-6" />
 
           {/* PIÈCES JOINTES */}
           <div>
