@@ -4,7 +4,7 @@ import { useAuth } from '../App.jsx';
 import {
   ChevronLeft, Phone, Mail, Building2, Calendar, Clock,
   TrendingUp, CheckSquare, MoreVertical, Trash2, Plus, Check,
-  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays,
+  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays, Smartphone,
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
@@ -305,6 +305,7 @@ const TYPE_META = {
   email:    { label: 'Email',     iconBg: 'bg-blue-500',     textColor: 'text-blue-700' },
   whatsapp: { label: 'WhatsApp',  iconBg: 'bg-[#25D366]',   textColor: 'text-[#25D366]' },
   appel:    { label: 'Appel',     iconBg: 'bg-emerald-500',  textColor: 'text-emerald-700' },
+  sms:      { label: 'SMS',       iconBg: 'bg-orange-500',   textColor: 'text-orange-700' },
   reunion:  { label: 'Réunion',   iconBg: 'bg-violet-500',   textColor: 'text-violet-700' },
 };
 
@@ -314,6 +315,7 @@ function TimelineInteraction({ item, onDelete }) {
   const Icon = item.type === 'email' ? Mail
     : item.type === 'whatsapp' ? MessageSquare
     : item.type === 'appel' ? Phone
+    : item.type === 'sms' ? Smartphone
     : item.type === 'reunion' ? Users : FileText;
 
   return (
@@ -914,6 +916,15 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
             </button>
           );
         })()}
+        {canMessage && (
+          <button
+            onClick={() => setSendModal({ type: 'sms' })}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            SMS
+          </button>
+        )}
         {canMessage && (
           <button
             onClick={() => setSendModal({ type: 'email' })}

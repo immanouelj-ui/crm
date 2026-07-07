@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../api.js';
 import {
   X, Mail, MessageSquare, Paperclip, AlertCircle, CheckCircle,
-  Loader2, Trash2,
+  Loader2, Trash2, Smartphone,
 } from 'lucide-react';
 
 // ── Variable replacement ─────────────────────────────────────────────────────
@@ -541,11 +541,135 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   );
 }
 
+// ── SMS modal ────────────────────────────────────────────────────────────────
+
+function SmsModal({ contact, fields, onClose, onSent }) {
+  const [phone, setPhone] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
+  const [twilioConnected, setTwilioConnected] = useState(null); // null = loading
+  const bodyRef = useRef();
+
+  useEffect(() => {
+    setPhone(findPhone(contact, fields));
+    api.getTwilioStatus().then(s => setTwilioConnected(!!s.connected)).catch(() => setTwilioConnected(false));
+  }, [contact, fields]);
+
+  function insertVar(key) {
+    const el = bodyRef.current;
+    if (el) {
+      const s = el.selectionStart, e = el.selectionEnd;
+      const v = body.slice(0, s) + key + body.slice(e);
+      setBody(v);
+      setTimeout(() => { el.focus(); el.setSelectionRange(s + key.length, s + key.length); }, 0);
+    } else setBody(prev => prev + key);
+  }
+
+  async function handleSend() {
+    setError(null);
+    setSending(true);
+    const finalBody = fillVariables(body, contact);
+    try {
+      await api.sendSms({ contact_id: contact?.id || null, phone, body: finalBody });
+      setSent(true);
+      setTimeout(() => { onSent && onSent(); onClose(); }, 1500);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const cd = contact?.custom_data || {};
+  const name = cd.nom || cd.name || `Contact #${contact?.id}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+              <Smartphone className="w-4 h-4 text-orange-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Envoyer un SMS</h2>
+              <p className="text-xs text-slate-500">{name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 px-6 py-5 space-y-4">
+          {twilioConnected === false && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              Twilio n'est pas connecté. Connectez votre compte dans Paramètres → Twilio pour envoyer des SMS.
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Numéro</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+33612345678"
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Message</label>
+            <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)}
+              placeholder="Votre message…" rows={5} maxLength={1600}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-none" />
+            <div className="flex items-center justify-between mt-1">
+              <VariableChips onInsert={insertVar} />
+              <span className="text-xs text-slate-400 flex-shrink-0">{body.length}/1600</span>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              {error}
+            </div>
+          )}
+
+          {sent && (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm text-emerald-700">
+              <CheckCircle className="w-4 h-4" />
+              SMS envoyé !
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 px-6 py-4 flex items-center gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            Annuler
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={handleSend}
+            disabled={sending || sent || !phone.trim() || !body.trim() || !twilioConnected}
+            className="flex items-center gap-2 px-5 py-2 bg-orange-500 text-white text-sm font-medium rounded-xl hover:bg-orange-600 disabled:opacity-40 transition-colors"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+            Envoyer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Exported modal switcher ──────────────────────────────────────────────────
 
 export default function SendMessageModal({ contact, fields, type, onClose, onSent }) {
   if (type === 'whatsapp') {
     return <WhatsAppModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} />;
+  }
+  if (type === 'sms') {
+    return <SmsModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} />;
   }
   return <EmailModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} />;
 }

@@ -795,6 +795,7 @@ function SentHistory() {
             { id: 'all', label: 'Tous' },
             { id: 'email', label: '📧 Email' },
             { id: 'whatsapp', label: '💬 WhatsApp' },
+            { id: 'sms', label: '📱 SMS' },
           ].map(f => (
             <button
               key={f.id}
@@ -822,6 +823,9 @@ function SentHistory() {
         ) : filtered.map(msg => {
           const isEmail = msg.type === 'email';
           const isOpen = expanded === msg.id;
+          const badge = msg.type === 'email' ? { bg: 'bg-blue-100', icon: '📧' }
+            : msg.type === 'sms' ? { bg: 'bg-orange-100', icon: '📱' }
+            : { bg: 'bg-emerald-100', icon: '💬' };
           return (
             <div
               key={msg.id}
@@ -833,10 +837,8 @@ function SentHistory() {
                 onClick={() => setExpanded(isOpen ? null : msg.id)}
               >
                 {/* Type badge */}
-                <span className={`mt-0.5 flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm ${
-                  isEmail ? 'bg-blue-100' : 'bg-emerald-100'
-                }`}>
-                  {isEmail ? '📧' : '💬'}
+                <span className={`mt-0.5 flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm ${badge.bg}`}>
+                  {badge.icon}
                 </span>
 
                 <div className="flex-1 min-w-0">

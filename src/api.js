@@ -111,6 +111,7 @@ export const api = {
   // Messaging — Send
   sendEmail: (data) => request('POST', '/messaging/send/email', data),
   sendWhatsApp: (data) => request('POST', '/messaging/whatsapp/send', data),
+  sendSms: (data) => request('POST', '/messaging/sms/send', data),
   getSentMessages: () => request('GET', '/messaging/sent'),
 
   // Attachments
