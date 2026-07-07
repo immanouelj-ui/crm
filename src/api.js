@@ -176,6 +176,21 @@ export const api = {
   disconnectTwilio: () => request('DELETE', '/twilio/disconnect'),
   getTwilioToken: () => request('POST', '/twilio/token'),
   saveTwilioGreeting: (greeting) => request('POST', '/twilio/voicemail-greeting', { greeting }),
+  uploadTwilioGreetingAudio: (file) => {
+    const token = localStorage.getItem('crm_token');
+    const formData = new FormData();
+    formData.append('audio', file);
+    return fetch('/api/twilio/voicemail-audio', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }).then(async r => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      return data;
+    });
+  },
+  deleteTwilioGreetingAudio: () => request('DELETE', '/twilio/voicemail-audio'),
   startCallRecording: (callSid) => request('POST', `/twilio/calls/${callSid}/record/start`),
   stopCallRecording: (callSid, recordingSid) => request('POST', `/twilio/calls/${callSid}/record/${recordingSid}/stop`),
 };

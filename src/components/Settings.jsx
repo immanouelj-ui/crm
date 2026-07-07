@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle } from 'lucide-react';
+import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle, Upload, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
 
 const BASE = '/api';
@@ -65,9 +65,16 @@ export default function Settings() {
   const [greeting, setGreeting] = useState('');
   const [greetingSaving, setGreetingSaving] = useState(false);
   const [greetingSaved, setGreetingSaved] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [audioUploading, setAudioUploading] = useState(false);
+  const [audioError, setAudioError] = useState('');
 
   useEffect(() => {
-    api.getTwilioStatus().then(s => { setTwilioStatus(s); setGreeting(s.voicemailGreeting || ''); }).catch(() => {});
+    api.getTwilioStatus().then(s => {
+      setTwilioStatus(s);
+      setGreeting(s.voicemailGreeting || '');
+      setAudioUrl(s.voicemailAudioUrl || null);
+    }).catch(() => {});
   }, []);
 
   async function handleSaveGreeting() {
@@ -79,6 +86,25 @@ export default function Settings() {
     } finally {
       setGreetingSaving(false);
     }
+  }
+
+  async function handleUploadAudio(file) {
+    if (!file) return;
+    setAudioUploading(true);
+    setAudioError('');
+    try {
+      const res = await api.uploadTwilioGreetingAudio(file);
+      setAudioUrl(res.voicemailAudioUrl);
+    } catch (e) {
+      setAudioError(e.message);
+    } finally {
+      setAudioUploading(false);
+    }
+  }
+
+  async function handleRemoveAudio() {
+    await api.deleteTwilioGreetingAudio();
+    setAudioUrl(null);
   }
 
   async function handleConnectTwilio() {
@@ -313,6 +339,37 @@ export default function Settings() {
                       {greetingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : greetingSaved ? <CheckCircle className="w-4 h-4" /> : null}
                       {greetingSaved ? 'Enregistré' : 'Enregistrer le message'}
                     </button>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-3">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Ou utiliser un fichier audio (remplace le message texte)
+                    </label>
+                    {audioUrl ? (
+                      <div className="flex items-center gap-3">
+                        <audio controls src={audioUrl} className="h-9 flex-1" />
+                        <button
+                          onClick={handleRemoveAudio}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                          title="Supprimer le fichier audio"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-dashed border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer transition-colors w-fit">
+                        {audioUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        {audioUploading ? 'Envoi…' : 'Choisir un fichier MP3/WAV'}
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          className="hidden"
+                          disabled={audioUploading}
+                          onChange={e => handleUploadAudio(e.target.files?.[0])}
+                        />
+                      </label>
+                    )}
+                    {audioError && <p className="text-xs text-red-600 mt-1">{audioError}</p>}
                   </div>
                 </>
               ) : (
