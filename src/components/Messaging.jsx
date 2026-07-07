@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import {
   Mail, MessageSquare, Plus, Trash2, Save, Eye, EyeOff,
   ChevronDown, ChevronUp, AlertCircle, CheckCircle, Loader2,
-  Wifi, WifiOff, RefreshCw, Clock, Search, X, User, Phone,
+  Wifi, WifiOff, RefreshCw, Clock, Search, X, User, Phone, Smartphone,
 } from 'lucide-react';
 
 // ── Variable chips ───────────────────────────────────────────────────────────
@@ -164,6 +164,7 @@ function TemplateEditor({ template, onSaved, onDeleted }) {
             {[
               { id: 'email', label: 'Email', icon: Mail },
               { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+              { id: 'sms', label: 'SMS', icon: Smartphone },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -173,6 +174,8 @@ function TemplateEditor({ template, onSaved, onDeleted }) {
                   type === id
                     ? id === 'whatsapp'
                       ? 'bg-[#25D366] text-white border-[#25D366]'
+                      : id === 'sms'
+                      ? 'bg-orange-500 text-white border-orange-500'
                       : 'bg-indigo-600 text-white border-indigo-600'
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
@@ -989,10 +992,12 @@ export default function Messaging() {
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      t.type === 'whatsapp' ? 'bg-[#25D366]/10' : 'bg-indigo-50'
+                      t.type === 'whatsapp' ? 'bg-[#25D366]/10' : t.type === 'sms' ? 'bg-orange-50' : 'bg-indigo-50'
                     }`}>
                       {t.type === 'whatsapp'
                         ? <MessageSquare className="w-4 h-4 text-[#25D366]" />
+                        : t.type === 'sms'
+                        ? <Smartphone className="w-4 h-4 text-orange-500" />
                         : <Mail className="w-4 h-4 text-indigo-500" />
                       }
                     </div>
@@ -1001,9 +1006,11 @@ export default function Messaging() {
                       <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                         t.type === 'whatsapp'
                           ? 'bg-[#25D366]/10 text-[#25D366]'
+                          : t.type === 'sms'
+                          ? 'bg-orange-50 text-orange-600'
                           : 'bg-indigo-50 text-indigo-600'
                       }`}>
-                        {t.type === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                        {t.type === 'whatsapp' ? 'WhatsApp' : t.type === 'sms' ? 'SMS' : 'Email'}
                       </span>
                     </div>
                   </button>

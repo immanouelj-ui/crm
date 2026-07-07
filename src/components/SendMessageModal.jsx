@@ -544,6 +544,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
 // ── SMS modal ────────────────────────────────────────────────────────────────
 
 function SmsModal({ contact, fields, onClose, onSent }) {
+  const [templates, setTemplates] = useState([]);
   const [phone, setPhone] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -555,7 +556,13 @@ function SmsModal({ contact, fields, onClose, onSent }) {
   useEffect(() => {
     setPhone(findPhone(contact, fields));
     api.getTwilioStatus().then(s => setTwilioConnected(!!s.connected)).catch(() => setTwilioConnected(false));
+    api.getTemplates().then(list => setTemplates(list.filter(t => t.type === 'sms'))).catch(() => {});
   }, [contact, fields]);
+
+  function applyTemplate(tplId) {
+    const tpl = templates.find(t => String(t.id) === String(tplId));
+    if (tpl) setBody(fillVariables(tpl.body || '', contact));
+  }
 
   function insertVar(key) {
     const el = bodyRef.current;
@@ -608,6 +615,17 @@ function SmsModal({ contact, fields, onClose, onSent }) {
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               Twilio n'est pas connecté. Connectez votre compte dans Paramètres → Twilio pour envoyer des SMS.
+            </div>
+          )}
+
+          {templates.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Modèle</label>
+              <select onChange={e => applyTemplate(e.target.value)} defaultValue=""
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 bg-white">
+                <option value="">— Choisir un modèle —</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
             </div>
           )}
 
