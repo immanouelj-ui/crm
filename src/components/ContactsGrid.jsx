@@ -364,6 +364,97 @@ const STATUS_BADGE = {
   Inactif: 'bg-slate-100 text-slate-600',
 };
 
+function NewContactModal({ fields, onClose, onCreated }) {
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const sortedFields = [...fields].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const newContact = await api.createContact({ custom_data: form });
+      onCreated(newContact);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la création');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900">Nouveau contact</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {sortedFields.map((field, i) => {
+            const val = form[field.name] ?? '';
+            return (
+              <div key={field.name}>
+                <label className="block text-xs font-medium text-slate-600 mb-1">{field.label}</label>
+                {field.type === 'select' ? (
+                  <select
+                    value={val}
+                    onChange={e => setForm(f => ({ ...f, [field.name]: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="">—</option>
+                    {parseOptions(field.options).map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
+                  </select>
+                ) : field.type === 'checkbox' ? (
+                  <input
+                    type="checkbox"
+                    checked={!!val}
+                    onChange={e => setForm(f => ({ ...f, [field.name]: e.target.checked }))}
+                    className="w-4 h-4 accent-indigo-600"
+                  />
+                ) : field.name === 'notes' ? (
+                  <textarea
+                    value={val}
+                    onChange={e => setForm(f => ({ ...f, [field.name]: e.target.value }))}
+                    rows={3}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                ) : (
+                  <input
+                    autoFocus={i === 0}
+                    type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
+                    value={val}
+                    onChange={e => setForm(f => ({ ...f, [field.name]: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+              </div>
+            );
+          })}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </form>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+            Annuler
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Création…' : 'Créer le contact'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CellEditor({ value, field, onSave, onCancel }) {
   const [val, setVal] = useState(value ?? '');
   const ref = useRef();
@@ -490,6 +581,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   const [editingCell, setEditingCell] = useState(null);
   const [showFieldManager, setShowFieldManager] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [selectedContact, setSelectedContact] = useState(externalSelectedContact || null);
   const [columnVisibility, setColumnVisibility] = useState({});
   const [loading, setLoading] = useState(true);
@@ -527,13 +619,10 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
     setEditingCell(null);
   }
 
-  async function addRow() {
-    const newContact = await api.createContact({ custom_data: {} });
+  async function handleContactCreated(newContact) {
     setContacts(prev => [newContact, ...prev]);
-    // Position sur le premier champ visible (nom par défaut)
-    const firstField = fields.find(f => f.visible === 1)?.name || 'nom';
-    setEditingCell({ rowId: newContact.id, fieldName: firstField });
     setPage(0);
+    setShowNewContactModal(false);
   }
 
   async function deleteRow(contactId, e) {
@@ -649,12 +738,12 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
 
           return (
             <div
-              className="min-h-[22px] flex items-center gap-1.5 group/cell relative"
-              onDoubleClick={(e) => { e.stopPropagation(); setEditingCell({ rowId: contactId, fieldName: field.name }); }}
+              className="min-h-[22px] flex items-center gap-1.5 group/cell relative cursor-text"
+              onClick={(e) => { e.stopPropagation(); setEditingCell({ rowId: contactId, fieldName: field.name }); }}
             >
               {(val === null || val === undefined || val === '') ? (
                 <span className="text-slate-200 text-xs group-hover/cell:text-slate-400 transition-colors">
-                  Double-clic pour éditer
+                  Cliquer pour éditer
                 </span>
               ) : (
                 <>
@@ -944,7 +1033,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           </button>
 
           <button
-            onClick={addRow}
+            onClick={() => setShowNewContactModal(true)}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
           >
             <Plus className="w-4 h-4" />
@@ -1099,7 +1188,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
       <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={addRow}
+            onClick={() => setShowNewContactModal(true)}
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors py-1 px-2 rounded hover:bg-indigo-50"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -1172,6 +1261,13 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           fields={fields}
           onClose={() => setShowImport(false)}
           onImported={loadData}
+        />
+      )}
+      {showNewContactModal && (
+        <NewContactModal
+          fields={fields}
+          onClose={() => setShowNewContactModal(false)}
+          onCreated={handleContactCreated}
         />
       )}
     </div>
