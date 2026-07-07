@@ -26,14 +26,35 @@ function CodeBlock({ code, language = 'bash' }) {
   );
 }
 
+const SAMPLE_VALUES = {
+  nom: 'Jean Dupont', name: 'Jean Dupont', email: 'jean@example.com',
+  phone: '0612345678', telephone: '0612345678', company: 'ACME',
+  statut: 'Lead', status: 'Lead', source: 'Site web',
+};
+
+function sampleValueFor(field) {
+  if (SAMPLE_VALUES[field.name]) return SAMPLE_VALUES[field.name];
+  if (field.type === 'email') return 'jean@example.com';
+  if (field.type === 'phone') return '0612345678';
+  if (field.type === 'number') return '7';
+  if (field.type === 'date') return '2024-03-15';
+  if (field.type === 'checkbox') return 'oui';
+  if (field.type === 'select') {
+    try { const o = JSON.parse(field.options || '[]')[0]; return (o?.label ?? o) || 'Valeur'; } catch { return 'Valeur'; }
+  }
+  return field.label || 'Valeur';
+}
+
 export default function ApiDocs() {
   const [user, setUser] = useState(null);
+  const [fields, setFields] = useState([]);
   const [copying, setCopying] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
 
   useEffect(() => {
     api.getMe().then(setUser).catch(console.error);
+    api.getFields().then(setFields).catch(console.error);
   }, []);
 
   async function regenerateKey() {
@@ -59,10 +80,22 @@ export default function ApiDocs() {
   const apiKey = user?.api_key || 'VOTRE_CLE_API';
   const endpoint = `${window.location.origin}/api/public/leads`;
 
+  // Exemple de body construit à partir des VRAIS champs du CRM
+  const sampleFields = (fields.length ? fields : [
+    { name: 'nom', label: 'Nom', type: 'text' },
+    { name: 'email', label: 'Email', type: 'email' },
+    { name: 'phone', label: 'Téléphone', type: 'phone' },
+    { name: 'statut', label: 'Statut', type: 'select', options: '["Lead"]' },
+  ]);
+  const sampleBody = {};
+  for (const f of sampleFields) sampleBody[f.name] = sampleValueFor(f);
+  const bodyJson = JSON.stringify(sampleBody);
+  const bodyJsonPretty = JSON.stringify(sampleBody, null, 2);
+
   const curlExample = `curl -X POST ${endpoint} \\
   -H "X-API-Key: ${apiKey}" \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"Jean Dupont","email":"jean@example.com","company":"ACME","status":"Lead"}'`;
+  -d '${bodyJson}'`;
 
   const jsExample = `// Intégration JavaScript / formulaire web
 const response = await fetch('${endpoint}', {
@@ -71,24 +104,19 @@ const response = await fetch('${endpoint}', {
     'X-API-Key': '${apiKey}',
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({
-    name: 'Jean Dupont',
-    email: 'jean@example.com',
-    company: 'ACME',
-    phone: '06 12 34 56 78',
-    status: 'Lead',
-  }),
+  body: JSON.stringify(${bodyJsonPretty.replace(/\n/g, '\n  ')}),
 });
 
 const lead = await response.json();
 console.log('Lead créé:', lead.id);`;
 
+  const htmlInputs = sampleFields
+    .map(f => `  <input name="${f.name}" placeholder="${f.label}" />`)
+    .join('\n');
+
   const htmlFormExample = `<!-- Formulaire HTML avec soumission AJAX -->
 <form id="lead-form">
-  <input name="name" placeholder="Nom complet" required />
-  <input name="email" type="email" placeholder="Email" required />
-  <input name="company" placeholder="Entreprise" />
-  <input name="phone" placeholder="Téléphone" />
+${htmlInputs}
   <button type="submit">Envoyer</button>
 </form>
 
@@ -159,7 +187,41 @@ document.getElementById('lead-form').addEventListener('submit', async (e) => {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
           <strong>Header requis:</strong> <code className="bg-blue-100 px-1 rounded">X-API-Key: {apiKey.slice(0, 8)}...</code>
           <br />
-          <strong>Body:</strong> JSON avec les noms des champs CRM (name, email, phone, company, status, notes...)
+          <strong>Body:</strong> JSON avec les noms des champs CRM (voir la liste ci-dessous)
+        </div>
+      </div>
+
+      {/* Champs disponibles (dynamique) */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Code className="w-5 h-5 text-blue-600" />
+          <h2 className="font-semibold text-gray-900">Champs disponibles</h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Utilisez la colonne <strong>Clé API</strong> comme nom de champ (<code>name</code>) dans votre formulaire.
+          Toute clé envoyée qui ne correspond à aucun champ existant crée automatiquement un nouveau champ.
+        </p>
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th className="text-left font-medium px-4 py-2">Clé API</th>
+                <th className="text-left font-medium px-4 py-2">Libellé</th>
+                <th className="text-left font-medium px-4 py-2">Type</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {fields.length === 0 ? (
+                <tr><td colSpan={3} className="px-4 py-3 text-gray-400">Chargement…</td></tr>
+              ) : fields.map(f => (
+                <tr key={f.id}>
+                  <td className="px-4 py-2 font-mono text-gray-800">{f.name}</td>
+                  <td className="px-4 py-2 text-gray-600">{f.label}</td>
+                  <td className="px-4 py-2 text-gray-500">{f.type}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -196,12 +258,7 @@ document.getElementById('lead-form').addEventListener('submit', async (e) => {
         <CodeBlock code={`// HTTP 201 Created
 {
   "id": 6,
-  "custom_data": {
-    "name": "Jean Dupont",
-    "email": "jean@example.com",
-    "company": "ACME",
-    "status": "Lead"
-  },
+  "custom_data": ${JSON.stringify(sampleBody, null, 2).replace(/\n/g, '\n  ')},
   "created_at": "2024-03-15T10:30:00.000Z",
   "updated_at": "2024-03-15T10:30:00.000Z"
 }

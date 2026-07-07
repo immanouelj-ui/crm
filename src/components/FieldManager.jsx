@@ -129,7 +129,9 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
 
   async function addNewField() {
     if (!newField.label.trim()) { setError('Le libellé est requis'); return; }
-    const name = newField.name.trim() || newField.label.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const name = newField.name.trim() || newField.label.trim()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     setSaving(true);
     setError('');
     try {
