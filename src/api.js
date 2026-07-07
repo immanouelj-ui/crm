@@ -175,6 +175,7 @@ export const api = {
   connectTwilio: (data) => request('POST', '/twilio/connect', data),
   disconnectTwilio: () => request('DELETE', '/twilio/disconnect'),
   getTwilioToken: () => request('POST', '/twilio/token'),
+  saveTwilioGreeting: (greeting) => request('POST', '/twilio/voicemail-greeting', { greeting }),
   startCallRecording: (callSid) => request('POST', `/twilio/calls/${callSid}/record/start`),
   stopCallRecording: (callSid, recordingSid) => request('POST', `/twilio/calls/${callSid}/record/${recordingSid}/stop`),
 };

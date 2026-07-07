@@ -62,10 +62,24 @@ export default function Settings() {
   const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', phoneNumber: '' });
   const [twilioConnecting, setTwilioConnecting] = useState(false);
   const [twilioError, setTwilioError] = useState('');
+  const [greeting, setGreeting] = useState('');
+  const [greetingSaving, setGreetingSaving] = useState(false);
+  const [greetingSaved, setGreetingSaved] = useState(false);
 
   useEffect(() => {
-    api.getTwilioStatus().then(setTwilioStatus).catch(() => {});
+    api.getTwilioStatus().then(s => { setTwilioStatus(s); setGreeting(s.voicemailGreeting || ''); }).catch(() => {});
   }, []);
+
+  async function handleSaveGreeting() {
+    setGreetingSaving(true);
+    try {
+      await api.saveTwilioGreeting(greeting);
+      setGreetingSaved(true);
+      setTimeout(() => setGreetingSaved(false), 2000);
+    } finally {
+      setGreetingSaving(false);
+    }
+  }
 
   async function handleConnectTwilio() {
     setTwilioConnecting(true);
@@ -269,18 +283,38 @@ export default function Settings() {
             </div>
             <div className="px-5 py-4 bg-slate-50 space-y-3">
               {twilioStatus.connected ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-700">Numéro Twilio : <span className="font-medium">{twilioStatus.phoneNumber}</span></p>
-                    <p className="text-xs text-slate-500 mt-0.5">Compte : {twilioStatus.accountSid}</p>
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-700">Numéro Twilio : <span className="font-medium">{twilioStatus.phoneNumber}</span></p>
+                      <p className="text-xs text-slate-500 mt-0.5">Compte : {twilioStatus.accountSid}</p>
+                    </div>
+                    <button
+                      onClick={handleDisconnectTwilio}
+                      className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      Déconnecter
+                    </button>
                   </div>
-                  <button
-                    onClick={handleDisconnectTwilio}
-                    className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Déconnecter
-                  </button>
-                </div>
+                  <div className="border-t border-slate-200 pt-3">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Message d'accueil de la messagerie vocale (appels entrants)</label>
+                    <textarea
+                      value={greeting}
+                      onChange={e => setGreeting(e.target.value)}
+                      rows={2}
+                      placeholder="Bonjour, vous êtes bien sur la messagerie. Merci de laisser votre message après le bip."
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                    <button
+                      onClick={handleSaveGreeting}
+                      disabled={greetingSaving}
+                      className="mt-2 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {greetingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : greetingSaved ? <CheckCircle className="w-4 h-4" /> : null}
+                      {greetingSaved ? 'Enregistré' : 'Enregistrer le message'}
+                    </button>
+                  </div>
+                </>
               ) : (
                 <>
                   <div>
