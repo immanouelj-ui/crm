@@ -710,21 +710,29 @@ function CallHistory() {
         ) : filtered.map(call => {
           const name = contactName(call.contact_id);
           const missed = !call.duration_sec;
+          const isVoicemail = call.direction === 'inbound' && call.recording_sid;
           return (
-            <div key={call.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
-              <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${missed ? 'bg-red-100' : 'bg-emerald-100'}`}>
-                <Phone className={`w-4 h-4 ${missed ? 'text-red-500' : 'text-emerald-600'}`} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900">{name || call.phone_number}</p>
-                <p className="text-xs text-slate-500">{name && call.phone_number} {name ? `· ${call.phone_number}` : ''}</p>
+            <div key={call.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${missed ? 'bg-red-100' : isVoicemail ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                  <Phone className={`w-4 h-4 ${missed ? 'text-red-500' : isVoicemail ? 'text-amber-600' : 'text-emerald-600'}`} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900">{name || call.phone_number}</p>
+                  <p className="text-xs text-slate-500">
+                    {isVoicemail ? 'Message vocal · ' : ''}{name && call.phone_number} {name ? `· ${call.phone_number}` : ''}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-xs font-medium ${missed ? 'text-red-500' : 'text-slate-700'}`}>
+                    {missed ? 'Non abouti' : fmtDuration(call.duration_sec)}
+                  </p>
+                  <p className="text-xs text-slate-400">{fmtDate(call.created_at || call.date)}</p>
+                </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className={`text-xs font-medium ${missed ? 'text-red-500' : 'text-slate-700'}`}>
-                  {missed ? 'Non abouti' : fmtDuration(call.duration_sec)}
-                </p>
-                <p className="text-xs text-slate-400">{fmtDate(call.created_at || call.date)}</p>
-              </div>
+              {call.transcription && (
+                <p className="text-xs text-slate-500 mt-2 pl-11 italic">📝 {call.transcription}</p>
+              )}
             </div>
           );
         })}
