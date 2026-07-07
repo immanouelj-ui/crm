@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
+import { CreateCampaignModal } from './Campaigns.jsx';
 
 // ── Filter logic ─────────────────────────────────────────────────────────────
 
@@ -582,6 +583,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   const [showFieldManager, setShowFieldManager] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showNewContactModal, setShowNewContactModal] = useState(false);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignToast, setCampaignToast] = useState(false);
   const [selectedContact, setSelectedContact] = useState(externalSelectedContact || null);
   const [columnVisibility, setColumnVisibility] = useState({});
@@ -641,10 +643,8 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
     setSelectedRows(new Set());
   }
 
-  async function createCampaignFromSelection() {
-    const name = window.prompt('Nom de la campagne d\'appels :');
-    if (!name) return;
-    await api.createCampaign({ name, contact_ids: [...selectedRows] });
+  function handleCampaignCreated() {
+    setShowCampaignModal(false);
     setSelectedRows(new Set());
     setCampaignToast(true);
     setTimeout(() => setCampaignToast(false), 4000);
@@ -1250,7 +1250,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
             Exporter
           </button>
           <button
-            onClick={createCampaignFromSelection}
+            onClick={() => setShowCampaignModal(true)}
             className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors"
           >
             <PhoneCall className="w-3.5 h-3.5" />
@@ -1285,6 +1285,13 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           fields={fields}
           onClose={() => setShowNewContactModal(false)}
           onCreated={handleContactCreated}
+        />
+      )}
+      {showCampaignModal && (
+        <CreateCampaignModal
+          contactIds={[...selectedRows]}
+          onClose={() => setShowCampaignModal(false)}
+          onCreated={handleCampaignCreated}
         />
       )}
       {campaignToast && (

@@ -2,8 +2,98 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api.js';
 import {
   Phone, PhoneOff, Trash2, Loader2, ChevronLeft, CheckCircle,
-  XCircle, Voicemail, Clock, PlayCircle, Users,
+  XCircle, Voicemail, Clock, PlayCircle, Users, X, MessageSquare, Smartphone,
 } from 'lucide-react';
+
+export function CreateCampaignModal({ contactIds, onClose, onCreated }) {
+  const [name, setName] = useState('');
+  const [templates, setTemplates] = useState([]);
+  const [smsTemplateId, setSmsTemplateId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getTemplates().then(list => setTemplates(list.filter(t => t.type === 'sms'))).catch(() => {});
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const campaign = await api.createCampaign({
+        name: name.trim(),
+        contact_ids: contactIds,
+        sms_template_id: smsTemplateId || null,
+      });
+      onCreated(campaign);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900">Nouvelle campagne d'appels</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nom de la campagne</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Relance leads juillet"
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <p className="text-xs text-slate-500">{contactIds.length} contact{contactIds.length > 1 ? 's' : ''} sélectionné{contactIds.length > 1 ? 's' : ''}</p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1.5">
+              <Smartphone className="w-3.5 h-3.5 text-orange-500" />
+              Modèle SMS à envoyer pendant la campagne (optionnel)
+            </label>
+            {templates.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Aucun modèle SMS créé — vas dans Messagerie → Modèles pour en créer un.</p>
+            ) : (
+              <select
+                value={smsTemplateId}
+                onChange={e => setSmsTemplateId(e.target.value)}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="">— Aucun —</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Créer la campagne
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const OUTCOMES = [
   { id: 'answered', label: 'Répondu', icon: CheckCircle, color: 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' },
@@ -19,17 +109,32 @@ function findPhone(customData, fields) {
   return customData.phone || customData.telephone || customData.tel || '';
 }
 
+function fillVariables(text, cd) {
+  const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  return (text || '')
+    .replace(/\{\{name\}\}/g, cd.nom || cd.name || '')
+    .replace(/\{\{company\}\}/g, cd.company || cd.entreprise || '')
+    .replace(/\{\{email\}\}/g, cd.email || '')
+    .replace(/\{\{phone\}\}/g, cd.phone || cd.telephone || '')
+    .replace(/\{\{date\}\}/g, today);
+}
+
 function CampaignDialer({ campaignId, onExit }) {
   const [campaign, setCampaign] = useState(null);
   const [fields, setFields] = useState([]);
+  const [smsTemplate, setSmsTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsError, setSmsError] = useState('');
 
   const load = useCallback(async () => {
-    const [c, f] = await Promise.all([api.getCampaign(campaignId), api.getFields()]);
+    const [c, f, templates] = await Promise.all([api.getCampaign(campaignId), api.getFields(), api.getTemplates()]);
     setCampaign(c);
     setFields(f);
+    setSmsTemplate(c.sms_template_id ? templates.find(t => String(t.id) === String(c.sms_template_id)) : null);
     setLoading(false);
   }, [campaignId]);
 
@@ -48,6 +153,7 @@ function CampaignDialer({ campaignId, onExit }) {
     try {
       await api.recordCampaignOutcome(campaignId, current.id, { outcome, notes });
       setNotes('');
+      setSmsSent(false);
       await load();
     } finally {
       setSaving(false);
@@ -57,6 +163,21 @@ function CampaignDialer({ campaignId, onExit }) {
   function handleCall() {
     const phone = findPhone(current.custom_data, fields);
     if (phone) window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phone, contactId: current.contact_id } }));
+  }
+
+  async function handleSendSms() {
+    const phone = findPhone(current.custom_data, fields);
+    if (!phone || !smsTemplate) return;
+    setSmsSending(true);
+    setSmsError('');
+    try {
+      await api.sendSms({ contact_id: current.contact_id, phone, body: fillVariables(smsTemplate.body, current.custom_data) });
+      setSmsSent(true);
+    } catch (e) {
+      setSmsError(e.message);
+    } finally {
+      setSmsSending(false);
+    }
   }
 
   return (
@@ -91,16 +212,31 @@ function CampaignDialer({ campaignId, onExit }) {
               <p className="text-lg font-semibold text-slate-900">{current.custom_data.nom || current.custom_data.name || `Contact #${current.contact_id}`}</p>
               <p className="text-sm text-slate-500">{current.custom_data.company || ''}</p>
               <p className="text-sm text-indigo-600 font-mono mt-1">{findPhone(current.custom_data, fields) || 'Aucun numéro'}</p>
+              {current.attempts > 0 && (
+                <p className="text-xs text-amber-600 mt-1">Tentative {current.attempts + 1} (rappel)</p>
+              )}
             </div>
 
             <button
               onClick={handleCall}
               disabled={!findPhone(current.custom_data, fields)}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white text-sm font-medium rounded-xl hover:bg-emerald-600 disabled:opacity-40 transition-colors mb-4"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white text-sm font-medium rounded-xl hover:bg-emerald-600 disabled:opacity-40 transition-colors mb-2"
             >
               <Phone className="w-4 h-4" />
               Appeler
             </button>
+
+            {smsTemplate && (
+              <button
+                onClick={handleSendSms}
+                disabled={smsSending || smsSent || !findPhone(current.custom_data, fields)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-50 text-orange-700 border border-orange-200 text-sm font-medium rounded-xl hover:bg-orange-100 disabled:opacity-50 transition-colors mb-4"
+              >
+                {smsSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+                {smsSent ? 'SMS envoyé' : `Envoyer SMS "${smsTemplate.name}"`}
+              </button>
+            )}
+            {smsError && <p className="text-xs text-red-600 mb-3">{smsError}</p>}
 
             <textarea
               value={notes}
