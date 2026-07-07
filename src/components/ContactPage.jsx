@@ -892,14 +892,16 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           const phoneField = fields.find(f => f.type === 'phone' || f.type === 'tel');
           const phoneVal = phoneField ? cd[phoneField.name] : (cd.phone || cd.telephone || cd.tel || '');
           return (
-            <a
-              href={phoneVal ? `tel:${phoneVal}` : undefined}
+            <button
+              type="button"
+              disabled={!phoneVal}
               title={phoneVal || 'Aucun numéro'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg transition-colors ${phoneVal ? 'hover:bg-emerald-100 cursor-pointer' : 'opacity-40 cursor-not-allowed pointer-events-none'}`}
+              onClick={() => phoneVal && window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phoneVal } }))}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg transition-colors ${phoneVal ? 'hover:bg-emerald-100 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
             >
               <Phone className="w-3.5 h-3.5" />
               {phoneVal ? `Appel · ${phoneVal}` : 'Appel'}
-            </a>
+            </button>
           );
         })()}
         {canMessage && (
