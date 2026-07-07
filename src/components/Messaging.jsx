@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import {
   Mail, MessageSquare, Plus, Trash2, Save, Eye, EyeOff,
   ChevronDown, ChevronUp, AlertCircle, CheckCircle, Loader2,
-  Wifi, WifiOff, RefreshCw, Clock, Search, X, User,
+  Wifi, WifiOff, RefreshCw, Clock, Search, X, User, Phone,
 } from 'lucide-react';
 
 // ── Variable chips ───────────────────────────────────────────────────────────
@@ -638,6 +638,98 @@ function WhatsAppSettings() {
   );
 }
 
+// ── Call History ──────────────────────────────────────────────────────────────
+
+function CallHistory() {
+  const [calls, setCalls] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    Promise.all([api.getInteractions(), api.getContacts()])
+      .then(([ints, cts]) => {
+        setCalls((Array.isArray(ints) ? ints : []).filter(i => i.type === 'appel'));
+        setContacts(Array.isArray(cts) ? cts : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function contactName(id) {
+    const c = contacts.find(c => c.id === id);
+    return c?.custom_data?.nom || c?.custom_data?.company || null;
+  }
+
+  function fmtDuration(sec) {
+    if (!sec) return '—';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m${s.toString().padStart(2, '0')}s`;
+  }
+
+  function fmtDate(str) {
+    if (!str) return '';
+    const d = new Date(str);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+      + ' · ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const filtered = calls.filter(c => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (c.phone_number || '').toLowerCase().includes(q) || (contactName(c.contact_id) || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="flex flex-col h-full bg-slate-50">
+      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-3">
+        <div className="relative flex-1 min-w-48 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Rechercher un numéro ou contact…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-slate-50"
+          />
+        </div>
+        <span className="text-xs text-slate-400 ml-auto">{filtered.length} appel{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+        {loading ? (
+          <div className="flex justify-center pt-12">
+            <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center pt-12 text-slate-400 text-sm">Aucun appel enregistré</div>
+        ) : filtered.map(call => {
+          const name = contactName(call.contact_id);
+          const missed = !call.duration_sec;
+          return (
+            <div key={call.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
+              <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${missed ? 'bg-red-100' : 'bg-emerald-100'}`}>
+                <Phone className={`w-4 h-4 ${missed ? 'text-red-500' : 'text-emerald-600'}`} />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900">{name || call.phone_number}</p>
+                <p className="text-xs text-slate-500">{name && call.phone_number} {name ? `· ${call.phone_number}` : ''}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className={`text-xs font-medium ${missed ? 'text-red-500' : 'text-slate-700'}`}>
+                  {missed ? 'Non abouti' : fmtDuration(call.duration_sec)}
+                </p>
+                <p className="text-xs text-slate-400">{fmtDate(call.created_at || call.date)}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Messaging page ──────────────────────────────────────────────────────
 
 // ── Sent History ─────────────────────────────────────────────────────────────
@@ -838,6 +930,7 @@ export default function Messaging() {
         {[
           { id: 'templates', label: 'Modèles' },
           { id: 'history', label: 'Historique' },
+          { id: 'calls', label: 'Appels' },
           { id: 'whatsapp', label: 'WhatsApp' },
           { id: 'smtp', label: 'Paramètres SMTP' },
         ].map(t => (
@@ -861,6 +954,8 @@ export default function Messaging() {
         <WhatsAppSettings />
       ) : tab === 'history' ? (
         <SentHistory />
+      ) : tab === 'calls' ? (
+        <CallHistory />
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {/* Left panel — template list */}

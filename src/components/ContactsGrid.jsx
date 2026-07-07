@@ -661,7 +661,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
                   <CellDisplay value={val} field={field} />
                   {field.type === 'phone' && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: val } })); }}
+                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: val, contactId } })); }}
                       className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
                       title="Appeler via Twilio"
                     >

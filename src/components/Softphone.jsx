@@ -20,6 +20,10 @@ export default function Softphone() {
   const timerRef = useRef(null);
   const statusRef = useRef('idle');
   const recordingSidRef = useRef(null);
+  const numberRef = useRef('');
+  const contactIdRef = useRef(null);
+  const durationRef = useRef(0);
+  const connectedRef = useRef(false);
 
   useEffect(() => { statusRef.current = status; }, [status]);
 
@@ -33,7 +37,7 @@ export default function Softphone() {
       if (!num || statusRef.current === 'calling' || statusRef.current === 'in-call') return;
       setNumber(num);
       setOpen(true);
-      handleCall(num);
+      handleCall(num, e.detail?.contactId ?? null);
     }
     window.addEventListener('crm:call-number', onCallNumber);
     return () => window.removeEventListener('crm:call-number', onCallNumber);
@@ -64,24 +68,31 @@ export default function Softphone() {
   }
 
   function startTimer() {
+    durationRef.current = 0;
     setDuration(0);
-    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+    timerRef.current = setInterval(() => {
+      durationRef.current += 1;
+      setDuration(durationRef.current);
+    }, 1000);
   }
   function stopTimer() {
     clearInterval(timerRef.current);
     timerRef.current = null;
   }
 
-  async function handleCall(dialNumber) {
+  async function handleCall(dialNumber, contactId = null) {
     const target = dialNumber ?? number;
     if (!target) return;
     setError('');
+    numberRef.current = target;
+    contactIdRef.current = contactId;
+    connectedRef.current = false;
     try {
       const device = await ensureDevice();
       setStatus('calling');
       const call = await device.connect({ params: { To: target } });
       callRef.current = call;
-      call.on('accept', () => { setStatus('in-call'); startTimer(); });
+      call.on('accept', () => { connectedRef.current = true; setStatus('in-call'); startTimer(); });
       call.on('disconnect', handleHangupCleanup);
       call.on('cancel', handleHangupCleanup);
       call.on('error', e => { setError(e.message); handleHangupCleanup(); });
@@ -91,8 +102,35 @@ export default function Softphone() {
     }
   }
 
+  async function logCall() {
+    const wasConnected = connectedRef.current;
+    const seconds = durationRef.current;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const durationLabel = `${mins}m${secs.toString().padStart(2, '0')}s`;
+    const notes = wasConnected
+      ? `Appel sortant vers ${numberRef.current} — durée ${durationLabel}${recordingSidRef.current ? ' — enregistré' : ''}`
+      : `Appel sortant vers ${numberRef.current} — non abouti`;
+    try {
+      await api.createInteraction({
+        contact_id: contactIdRef.current,
+        type: 'appel',
+        date: new Date().toISOString(),
+        notes,
+        phone_number: numberRef.current,
+        duration_sec: wasConnected ? seconds : 0,
+        recording_sid: recordingSidRef.current,
+        direction: 'outbound',
+      });
+      if (contactIdRef.current) {
+        window.dispatchEvent(new CustomEvent('crm:call-logged', { detail: { contactId: contactIdRef.current } }));
+      }
+    } catch {}
+  }
+
   function handleHangupCleanup() {
     stopTimer();
+    logCall();
     setStatus('ready');
     setMuted(false);
     setShowKeypad(false);

@@ -84,7 +84,7 @@ function parseOptions(raw) {
 
 const FIELD_ICON = { email: Mail, phone: Phone, company: Building2 };
 
-function EditableField({ label, value, fieldDef, onSave }) {
+function EditableField({ label, value, fieldDef, onSave, contactId }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value ?? '');
   const inputRef = useRef();
@@ -186,7 +186,7 @@ function EditableField({ label, value, fieldDef, onSave }) {
         )}
         {!editing && type === 'phone' && value && (
           <button
-            onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: value } })); }}
+            onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: value, contactId } })); }}
             className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
             title="Appeler via Twilio"
           >
@@ -765,6 +765,16 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    function onCallLogged(e) {
+      if (e.detail?.contactId === contactId) {
+        api.getContactInteractions(contactId).then(setInteractions).catch(() => {});
+      }
+    }
+    window.addEventListener('crm:call-logged', onCallLogged);
+    return () => window.removeEventListener('crm:call-logged', onCallLogged);
+  }, [contactId]);
+
   async function saveField(fieldName, value) {
     if (!contact) return;
     const newData = { ...contact.custom_data, [fieldName]: value };
@@ -896,7 +906,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               type="button"
               disabled={!phoneVal}
               title={phoneVal || 'Aucun numéro'}
-              onClick={() => phoneVal && window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phoneVal } }))}
+              onClick={() => phoneVal && window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phoneVal, contactId } }))}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg transition-colors ${phoneVal ? 'hover:bg-emerald-100 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
             >
               <Phone className="w-3.5 h-3.5" />
@@ -1011,6 +1021,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               value={cd[field.name]}
               fieldDef={field}
               onSave={v => saveField(field.name, v)}
+              contactId={contactId}
             />
           ))}
 
