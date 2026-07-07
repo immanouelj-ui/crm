@@ -181,9 +181,8 @@ export default function Softphone() {
     return `${m}:${sec}`;
   }
 
-  if (!available) return null;
-
   if (!open) {
+    if (!available) return null;
     return (
       <button
         onClick={() => setOpen(true)}
