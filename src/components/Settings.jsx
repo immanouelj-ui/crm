@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock } from 'lucide-react';
+import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle } from 'lucide-react';
+import { api } from '../api.js';
 
 const BASE = '/api';
 function tok() { return localStorage.getItem('crm_token'); }
@@ -57,6 +58,33 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
   const [pwdMsg, setPwdMsg] = useState({ text: '', ok: false });
+  const [twilioStatus, setTwilioStatus] = useState({ connected: false, phoneNumber: null });
+  const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', phoneNumber: '' });
+  const [twilioConnecting, setTwilioConnecting] = useState(false);
+  const [twilioError, setTwilioError] = useState('');
+
+  useEffect(() => {
+    api.getTwilioStatus().then(setTwilioStatus).catch(() => {});
+  }, []);
+
+  async function handleConnectTwilio() {
+    setTwilioConnecting(true);
+    setTwilioError('');
+    try {
+      const res = await api.connectTwilio(twilioForm);
+      setTwilioStatus(res);
+      setTwilioForm({ accountSid: '', authToken: '', phoneNumber: '' });
+    } catch (e) {
+      setTwilioError(e.message);
+    } finally {
+      setTwilioConnecting(false);
+    }
+  }
+
+  async function handleDisconnectTwilio() {
+    await api.disconnectTwilio();
+    setTwilioStatus({ connected: false, phoneNumber: null });
+  }
 
   useEffect(() => {
     apiFetch('GET', '/app-settings').then(data => {
@@ -220,6 +248,83 @@ export default function Settings() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Twilio */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0">
+                <Phone className="w-4 h-4 text-red-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">Twilio (téléphonie)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Appels sortants depuis le CRM avec votre propre compte Twilio</p>
+              </div>
+              {twilioStatus.connected && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Connecté
+                </span>
+              )}
+            </div>
+            <div className="px-5 py-4 bg-slate-50 space-y-3">
+              {twilioStatus.connected ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-700">Numéro Twilio : <span className="font-medium">{twilioStatus.phoneNumber}</span></p>
+                    <p className="text-xs text-slate-500 mt-0.5">Compte : {twilioStatus.accountSid}</p>
+                  </div>
+                  <button
+                    onClick={handleDisconnectTwilio}
+                    className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Déconnecter
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Account SID</label>
+                    <input
+                      type="text"
+                      value={twilioForm.accountSid}
+                      onChange={e => setTwilioForm(f => ({ ...f, accountSid: e.target.value }))}
+                      placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Auth Token</label>
+                    <input
+                      type="password"
+                      value={twilioForm.authToken}
+                      onChange={e => setTwilioForm(f => ({ ...f, authToken: e.target.value }))}
+                      placeholder="Votre Auth Token Twilio..."
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Numéro Twilio</label>
+                    <input
+                      type="text"
+                      value={twilioForm.phoneNumber}
+                      onChange={e => setTwilioForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                      placeholder="+33612345678"
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                  {twilioError && <p className="text-xs text-red-600">{twilioError}</p>}
+                  <button
+                    onClick={handleConnectTwilio}
+                    disabled={twilioConnecting || !twilioForm.accountSid || !twilioForm.authToken || !twilioForm.phoneNumber}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    {twilioConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
+                    Connecter Twilio
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </section>

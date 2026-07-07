@@ -184,6 +184,15 @@ function EditableField({ label, value, fieldDef, onSave }) {
             }
           </span>
         )}
+        {!editing && type === 'phone' && value && (
+          <button
+            onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: value } })); }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
+            title="Appeler via Twilio"
+          >
+            <Phone className="w-3.5 h-3.5 text-indigo-500" />
+          </button>
+        )}
         {!editing && <Edit3 className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />}
       </div>
     </div>

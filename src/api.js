@@ -168,4 +168,10 @@ export const api = {
     const token = localStorage.getItem('crm_token');
     return new EventSource(`/api/messaging/whatsapp/status/stream?token=${token}`);
   },
+
+  // Twilio (téléphonie)
+  getTwilioStatus: () => request('GET', '/twilio/status'),
+  connectTwilio: (data) => request('POST', '/twilio/connect', data),
+  disconnectTwilio: () => request('DELETE', '/twilio/disconnect'),
+  getTwilioToken: () => request('POST', '/twilio/token'),
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../App.jsx';
+import Softphone from './Softphone.jsx';
 import {
   LayoutDashboard, Users, Kanban, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, FileSignature,
 } from 'lucide-react';
@@ -117,6 +118,7 @@ export default function Layout({ children, currentPage, onNavigate, isAdmin, per
           {children}
         </main>
       </div>
+      <Softphone />
     </div>
   );
 }
