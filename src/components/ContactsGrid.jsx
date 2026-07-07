@@ -8,7 +8,7 @@ import {
 import { api } from '../api.js';
 import {
   Plus, Trash2, Download, Upload, Settings2, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone, PhoneCall, CheckCircle,
 } from 'lucide-react';
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
@@ -582,6 +582,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   const [showFieldManager, setShowFieldManager] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showNewContactModal, setShowNewContactModal] = useState(false);
+  const [campaignToast, setCampaignToast] = useState(false);
   const [selectedContact, setSelectedContact] = useState(externalSelectedContact || null);
   const [columnVisibility, setColumnVisibility] = useState({});
   const [loading, setLoading] = useState(true);
@@ -638,6 +639,15 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
     await Promise.all([...selectedRows].map(id => api.deleteContact(id)));
     setContacts(prev => prev.filter(c => !selectedRows.has(c.id)));
     setSelectedRows(new Set());
+  }
+
+  async function createCampaignFromSelection() {
+    const name = window.prompt('Nom de la campagne d\'appels :');
+    if (!name) return;
+    await api.createCampaign({ name, contact_ids: [...selectedRows] });
+    setSelectedRows(new Set());
+    setCampaignToast(true);
+    setTimeout(() => setCampaignToast(false), 4000);
   }
 
   function toggleRow(id) {
@@ -1240,6 +1250,13 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
             Exporter
           </button>
           <button
+            onClick={createCampaignFromSelection}
+            className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            <PhoneCall className="w-3.5 h-3.5" />
+            Créer une campagne d'appels
+          </button>
+          <button
             onClick={() => setSelectedRows(new Set())}
             className="text-slate-400 hover:text-white transition-colors"
           >
@@ -1269,6 +1286,12 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           onClose={() => setShowNewContactModal(false)}
           onCreated={handleContactCreated}
         />
+      )}
+      {campaignToast && (
+        <div className="fixed bottom-4 right-4 z-[60] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium bg-emerald-600">
+          <CheckCircle className="w-4 h-4" />
+          Campagne créée ! Retrouve-la dans "Campagnes d'appels".
+        </div>
       )}
     </div>
   );

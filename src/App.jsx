@@ -17,6 +17,7 @@ import Planning from './components/Planning.jsx';
 import Automations from './components/Automations.jsx';
 import Settings from './components/Settings.jsx';
 import Formalites from './components/Formalites.jsx';
+import Campaigns from './components/Campaigns.jsx';
 
 export const AuthContext = createContext(null);
 
@@ -135,6 +136,7 @@ export default function App() {
     ...(can('opportunities') && isEnabled('pipeline') && { pipeline: <Pipeline onSelectContact={setSelectedContactId} /> }),
     ...(can('billing') && isEnabled('billing') && { billing: <Billing pendingDoc={pendingBillingDoc} onPendingDocConsumed={() => setPendingBillingDoc(null)} /> }),
     ...(can('messaging') && isEnabled('messaging') && { messaging: <Messaging /> }),
+    ...(can('contacts') && { campaigns: <Campaigns /> }),
     ...((isAdmin || (perms.appointments_level && perms.appointments_level !== 'none')) && isEnabled('planning') && { planning: <Planning /> }),
     ...(isEnabled('reports') && { reports: <Reports /> }),
     ...(isEnabled('api') && { api: <ApiDocs /> }),

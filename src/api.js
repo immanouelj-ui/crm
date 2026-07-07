@@ -191,6 +191,14 @@ export const api = {
     });
   },
   deleteTwilioGreetingAudio: () => request('DELETE', '/twilio/voicemail-audio'),
+
+  // Campagnes d'appels
+  getCampaigns: () => request('GET', '/campaigns'),
+  createCampaign: (data) => request('POST', '/campaigns', data),
+  getCampaign: (id) => request('GET', `/campaigns/${id}`),
+  recordCampaignOutcome: (campaignId, campaignContactId, data) =>
+    request('POST', `/campaigns/${campaignId}/contacts/${campaignContactId}/outcome`, data),
+  deleteCampaign: (id) => request('DELETE', `/campaigns/${id}`),
   startCallRecording: (callSid) => request('POST', `/twilio/calls/${callSid}/record/start`),
   stopCallRecording: (callSid, recordingSid) => request('POST', `/twilio/calls/${callSid}/record/${recordingSid}/stop`),
 };
