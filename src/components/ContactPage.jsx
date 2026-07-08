@@ -9,6 +9,7 @@ import {
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
 import { Paperclip } from 'lucide-react';
+import { triggerCall } from '../lib/call.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ function EditableField({ label, value, fieldDef, onSave, contactId }) {
         )}
         {!editing && type === 'phone' && value && (
           <button
-            onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: value, contactId } })); }}
+            onClick={e => { e.stopPropagation(); triggerCall(value, contactId); }}
             className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
             title="Appeler via Twilio"
           >
@@ -857,7 +858,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
 
       {/* ── Top bar ── */}
-      <div className="bg-white border-b border-slate-200 h-14 flex items-center px-6 gap-3 flex-shrink-0 z-10 shadow-sm">
+      <div className="bg-white border-b border-slate-200 h-14 flex items-center px-3 md:px-6 gap-3 flex-shrink-0 z-10 shadow-sm overflow-x-auto scrollbar-thin">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mr-1"
@@ -908,7 +909,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               type="button"
               disabled={!phoneVal}
               title={phoneVal || 'Aucun numéro'}
-              onClick={() => phoneVal && window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phoneVal, contactId } }))}
+              onClick={() => triggerCall(phoneVal, contactId)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg transition-colors ${phoneVal ? 'hover:bg-emerald-100 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
             >
               <Phone className="w-3.5 h-3.5" />
@@ -1016,11 +1017,11 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         </div>
       </div>
 
-      {/* ── 3-column body ── */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* ── 3-column body (stacks vertically on mobile) ── */}
+      <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col md:flex-row">
 
         {/* ── LEFT: Properties ── */}
-        <div className="w-72 bg-white border-r border-slate-200 overflow-y-auto flex-shrink-0 px-5 py-5">
+        <div className="w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:overflow-y-auto flex-shrink-0 px-5 py-5">
 
           {/* COORDONNÉES — dynamic from fields table, mirrors grid columns */}
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Coordonnées</p>
@@ -1081,7 +1082,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         </div>
 
         {/* ── CENTER: Timeline ── */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 md:overflow-y-auto px-4 md:px-8 py-6">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Activité</p>
 
           {/* Composer */}
@@ -1147,7 +1148,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         )}
 
         {/* ── RIGHT: Deals + Tasks ── */}
-        <div className="w-80 border-l border-slate-200 bg-white overflow-y-auto flex-shrink-0 px-5 py-5">
+        <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 bg-white md:overflow-y-auto flex-shrink-0 px-5 py-5">
 
           {/* AFFAIRES */}
           <div className="mb-6">

@@ -13,6 +13,7 @@ import {
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
 import { CreateCampaignModal } from './Campaigns.jsx';
+import { triggerCall } from '../lib/call.js';
 
 // ── Filter logic ─────────────────────────────────────────────────────────────
 
@@ -760,7 +761,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
                   <CellDisplay value={val} field={field} />
                   {field.type === 'phone' && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: val, contactId } })); }}
+                      onClick={(e) => { e.stopPropagation(); triggerCall(val, contactId); }}
                       className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
                       title="Appeler via Twilio"
                     >
@@ -896,7 +897,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
       <div className="bg-white border-b border-slate-200 px-4 pt-3 pb-0 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap pb-3">
         {/* Search */}
-        <div className="relative" style={{ width: '320px' }}>
+        <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"

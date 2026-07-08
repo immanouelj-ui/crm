@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api.js';
+import { triggerCall } from '../lib/call.js';
 import {
   Phone, PhoneOff, Trash2, Loader2, ChevronLeft, CheckCircle,
   XCircle, Voicemail, Clock, PlayCircle, Users, X, MessageSquare, Smartphone,
@@ -162,7 +163,7 @@ function CampaignDialer({ campaignId, onExit }) {
 
   function handleCall() {
     const phone = findPhone(current.custom_data, fields);
-    if (phone) window.dispatchEvent(new CustomEvent('crm:call-number', { detail: { number: phone, contactId: current.contact_id } }));
+    triggerCall(phone, current.contact_id);
   }
 
   async function handleSendSms() {

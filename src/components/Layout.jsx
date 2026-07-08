@@ -33,7 +33,8 @@ function UserAvatar({ name, email, size = 'sm' }) {
 
 export default function Layout({ children, currentPage, onNavigate, isAdmin, permissions, enabledModules = {} }) {
   const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   function canSee(item) {
     if (item.adminOnly && !isAdmin) return false;
@@ -48,10 +49,23 @@ export default function Layout({ children, currentPage, onNavigate, isAdmin, per
   const navItems = NAV_ITEMS.filter(canSee);
   const currentNav = navItems.find(n => n.id === currentPage);
 
+  function handleNavigate(id) {
+    onNavigate(id);
+    if (isMobile) setSidebarOpen(false);
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <aside
-        className={`${sidebarOpen ? 'w-56' : 'w-16'} flex-shrink-0 flex flex-col transition-all duration-200`}
+        className={`fixed md:static inset-y-0 left-0 z-40 md:z-auto flex-shrink-0 flex flex-col transition-transform md:transition-all duration-200
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${sidebarOpen ? 'w-56' : 'md:w-16 w-56'}`}
         style={{ backgroundColor: '#0f172a' }}
       >
         <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-700/50">
@@ -67,11 +81,11 @@ export default function Layout({ children, currentPage, onNavigate, isAdmin, per
           )}
         </div>
 
-        <nav className="flex-1 py-4 space-y-0.5 px-2">
+        <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
           {navItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => onNavigate(id)}
+              onClick={() => handleNavigate(id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
                 currentPage === id
                   ? 'bg-indigo-600 text-white'
@@ -95,15 +109,15 @@ export default function Layout({ children, currentPage, onNavigate, isAdmin, per
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-4 shadow-sm">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition-colors flex-shrink-0"
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-          <h1 className="flex-1 text-sm font-semibold text-slate-900">
+          <h1 className="flex-1 text-sm font-semibold text-slate-900 truncate">
             {currentNav?.label || 'Tableau de bord'}
           </h1>
           <div className="flex items-center gap-2">
