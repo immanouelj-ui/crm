@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../App.jsx';
 import Softphone from './Softphone.jsx';
 import {
-  LayoutDashboard, Users, Kanban, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, FileSignature, PhoneCall,
+  LayoutDashboard, Users, Kanban, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, PhoneCall,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { id: 'reports',     label: 'Rapports',          icon: BarChart3,       perm: null,                 moduleKey: 'reports' },
   { id: 'api',         label: 'API & Integrations',icon: Key,             perm: null,                 moduleKey: 'api' },
   { id: 'team',        label: 'Mon equipe',        icon: UserCog,         perm: null, adminOnly: true },
-  { id: 'formalites',  label: 'Formalités',         icon: FileSignature,   perm: null },
   { id: 'automations', label: 'Automatisations',   icon: Zap,             perm: null, adminOnly: true, moduleKey: 'automations' },
   { id: 'settings',   label: 'Reglages',           icon: Settings,        perm: null, adminOnly: true },
 ];

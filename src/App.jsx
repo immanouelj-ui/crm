@@ -16,7 +16,6 @@ import Team from './components/Team.jsx';
 import Planning from './components/Planning.jsx';
 import Automations from './components/Automations.jsx';
 import Settings from './components/Settings.jsx';
-import Formalites from './components/Formalites.jsx';
 import Campaigns from './components/Campaigns.jsx';
 
 export const AuthContext = createContext(null);
@@ -143,7 +142,6 @@ export default function App() {
     ...(isAdmin && { team: <Team /> }),
     ...(isAdmin && isEnabled('automations') && { automations: <Automations /> }),
     ...(isAdmin && { settings: <Settings /> }),
-    formalites: <Formalites />,
   };
 
   const defaultPage = can('dashboard') ? 'dashboard' : Object.keys(pages)[0] || 'dashboard';
