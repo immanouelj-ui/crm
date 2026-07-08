@@ -128,6 +128,8 @@ export const api = {
   },
   deleteAttachment: (id) => request('DELETE', `/attachments/${id}`),
   getAttachmentUrl: (filename) => {
+    // Pièce jointe déjà hébergée ailleurs (ex: photo Uploadcare d'un lead) : URL directe.
+    if (/^https?:\/\//i.test(filename)) return filename;
     const token = localStorage.getItem('crm_token');
     return `/api/attachments/file/${filename}?token=${token}`;
   },
