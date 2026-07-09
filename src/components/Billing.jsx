@@ -309,7 +309,7 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600">
                 <Download className="w-4 h-4" /> XML
               </a>
-              {form.type === 'invoice' && form.status !== 'paid' && (
+              {!['paid', 'converted'].includes(form.status) && (
                 <button onClick={handlePaymentLink} disabled={paymentLinkLoading}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 text-slate-600 transition-colors disabled:opacity-50">
                   {paymentLinkLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
