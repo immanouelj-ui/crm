@@ -29,10 +29,10 @@ export default function Accounting() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stripeConnected, setStripeConnected] = useState(false);
-  const [contoConnected, setContoConnected] = useState(false);
-  const [contoSetupModal, setContoSetupModal] = useState(false);
-  const [contoForm, setContoForm] = useState({ clientId: '', clientSecret: '' });
-  const [contoLoading, setContoLoading] = useState(false);
+  const [contoConnected, setQuontoConnected] = useState(false);
+  const [contoSetupModal, setQuontoSetupModal] = useState(false);
+  const [contoForm, setQuontoForm] = useState({ clientId: '', clientSecret: '' });
+  const [contoLoading, setQuontoLoading] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -48,8 +48,8 @@ export default function Accounting() {
       const paid = await apiFetch('GET', `/accounting/invoices/paid?period=${period}`);
       setPaidInvoices(paid);
 
-      const contoStatus = await apiFetch('GET', '/accounting/conto/status');
-      setContoConnected(contoStatus.connected);
+      const contoStatus = await apiFetch('GET', '/accounting/quonto/status');
+      setQuontoConnected(contoStatus.connected);
     } catch (e) {
       setError(e.message);
       console.error(e);
@@ -62,24 +62,24 @@ export default function Accounting() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const handleContoConnect = async () => {
-    setContoLoading(true);
+  const handleQuontoConnect = async () => {
+    setQuontoLoading(true);
     try {
-      await apiFetch('POST', '/accounting/conto/connect', contoForm);
-      setContoConnected(true);
-      setContoSetupModal(false);
-      setContoForm({ clientId: '', clientSecret: '' });
+      await apiFetch('POST', '/accounting/quonto/connect', contoForm);
+      setQuontoConnected(true);
+      setQuontoSetupModal(false);
+      setQuontoForm({ clientId: '', clientSecret: '' });
     } catch (e) {
       setError(e.message);
     } finally {
-      setContoLoading(false);
+      setQuontoLoading(false);
     }
   };
 
-  const handleContoDisconnect = async () => {
+  const handleQuontoDisconnect = async () => {
     try {
-      await apiFetch('DELETE', '/accounting/conto/disconnect');
-      setContoConnected(false);
+      await apiFetch('DELETE', '/accounting/quonto/disconnect');
+      setQuontoConnected(false);
     } catch (e) {
       setError(e.message);
     }
@@ -320,13 +320,13 @@ export default function Accounting() {
             </div>
           )}
 
-          {/* Conto Integration */}
+          {/* Quonto Integration */}
           <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-sm p-6 border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Landmark className="w-5 h-5 text-blue-600" />
-                  Intégration Conto
+                  Intégration Quonto
                 </h3>
                 <p className="text-slate-600 mt-1">
                   Synchronisez vos transactions bancaires pour une vue complète de votre trésorerie
@@ -335,17 +335,17 @@ export default function Accounting() {
               <div>
                 {contoConnected ? (
                   <button
-                    onClick={handleContoDisconnect}
+                    onClick={handleQuontoDisconnect}
                     className="px-4 py-2 rounded-lg bg-red-50 text-red-600 border border-red-200 font-medium hover:bg-red-100"
                   >
-                    ❌ Déconnecter Conto
+                    ❌ Déconnecter Quonto
                   </button>
                 ) : (
                   <button
-                    onClick={() => setContoSetupModal(true)}
+                    onClick={() => setQuontoSetupModal(true)}
                     className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
                   >
-                    🔗 Connecter Conto
+                    🔗 Connecter Quonto
                   </button>
                 )}
               </div>
@@ -353,24 +353,24 @@ export default function Accounting() {
             {contoConnected && (
               <p className="mt-4 text-sm text-emerald-600 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                Connecté - Vos transactions Conto sont synchronisées
+                Connecté - Vos transactions Quonto sont synchronisées
               </p>
             )}
           </div>
         </>
       )}
 
-      {/* Conto Setup Modal */}
+      {/* Quonto Setup Modal */}
       {contoSetupModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <Landmark className="w-5 h-5 text-blue-600" />
-                Connecter Conto
+                Connecter Quonto
               </h2>
               <button
-                onClick={() => setContoSetupModal(false)}
+                onClick={() => setQuontoSetupModal(false)}
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-5 h-5" />
@@ -383,8 +383,8 @@ export default function Accounting() {
                 <input
                   type="text"
                   value={contoForm.clientId}
-                  onChange={e => setContoForm({ ...contoForm, clientId: e.target.value })}
-                  placeholder="Votre Client ID Conto"
+                  onChange={e => setQuontoForm({ ...contoForm, clientId: e.target.value })}
+                  placeholder="Votre Client ID Quonto"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -394,26 +394,26 @@ export default function Accounting() {
                 <input
                   type="password"
                   value={contoForm.clientSecret}
-                  onChange={e => setContoForm({ ...contoForm, clientSecret: e.target.value })}
-                  placeholder="Votre Client Secret Conto"
+                  onChange={e => setQuontoForm({ ...contoForm, clientSecret: e.target.value })}
+                  placeholder="Votre Client Secret Quonto"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <p className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg">
-                💡 Vous trouverez vos identifiants Conto dans votre tableau de bord à l'adresse <a href="https://conto.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">conto.com</a>
+                💡 Vous trouverez vos identifiants Quonto dans votre tableau de bord à l'adresse <a href="https://conto.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">conto.com</a>
               </p>
             </div>
 
             <div className="flex gap-3 p-6 border-t border-slate-200">
               <button
-                onClick={() => setContoSetupModal(false)}
+                onClick={() => setQuontoSetupModal(false)}
                 className="flex-1 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200"
               >
                 Annuler
               </button>
               <button
-                onClick={handleContoConnect}
+                onClick={handleQuontoConnect}
                 disabled={contoLoading || !contoForm.clientId || !contoForm.clientSecret}
                 className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
