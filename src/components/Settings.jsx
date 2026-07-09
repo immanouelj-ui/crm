@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle, Upload, Trash2 } from 'lucide-react';
+import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle, Upload, Trash2, CreditCard } from 'lucide-react';
 import { api } from '../api.js';
 
 const BASE = '/api';
@@ -58,6 +58,34 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
   const [pwdMsg, setPwdMsg] = useState({ text: '', ok: false });
+  const [stripeStatus, setStripeStatus] = useState({ connected: false });
+  const [stripeSecretKey, setStripeSecretKey] = useState('');
+  const [stripeConnecting, setStripeConnecting] = useState(false);
+  const [stripeError, setStripeError] = useState('');
+
+  useEffect(() => {
+    api.getStripeStatus().then(setStripeStatus).catch(() => {});
+  }, []);
+
+  async function handleConnectStripe() {
+    setStripeConnecting(true);
+    setStripeError('');
+    try {
+      const res = await api.connectStripe(stripeSecretKey);
+      setStripeStatus(res);
+      setStripeSecretKey('');
+    } catch (e) {
+      setStripeError(e.message);
+    } finally {
+      setStripeConnecting(false);
+    }
+  }
+
+  async function handleDisconnectStripe() {
+    await api.disconnectStripe();
+    setStripeStatus({ connected: false });
+  }
+
   const [twilioStatus, setTwilioStatus] = useState({ connected: false, phoneNumber: null });
   const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', phoneNumber: '' });
   const [twilioConnecting, setTwilioConnecting] = useState(false);
@@ -412,6 +440,61 @@ export default function Settings() {
                   >
                     {twilioConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
                     Connecter Twilio
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Stripe */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center flex-shrink-0">
+                <CreditCard className="w-4 h-4 text-violet-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">Stripe (paiement en ligne)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Ajoute un lien de paiement par carte sur les factures envoyées par email</p>
+              </div>
+              {stripeStatus.connected && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Connecté
+                </span>
+              )}
+            </div>
+            <div className="px-5 py-4 bg-slate-50 space-y-3">
+              {stripeStatus.connected ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-700">Stripe est connecté. Les factures envoyées incluront un bouton "Payer en ligne".</p>
+                  <button
+                    onClick={handleDisconnectStripe}
+                    className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
+                  >
+                    Déconnecter
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Clé secrète Stripe</label>
+                    <input
+                      type="password"
+                      value={stripeSecretKey}
+                      onChange={e => setStripeSecretKey(e.target.value)}
+                      placeholder="sk_live_... ou sk_test_..."
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Disponible dans Stripe → Développeurs → Clés API.</p>
+                  </div>
+                  {stripeError && <p className="text-xs text-red-600">{stripeError}</p>}
+                  <button
+                    onClick={handleConnectStripe}
+                    disabled={stripeConnecting || !stripeSecretKey}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    {stripeConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    Connecter Stripe
                   </button>
                 </>
               )}

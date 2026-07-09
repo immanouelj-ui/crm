@@ -176,6 +176,12 @@ export const api = {
   getTwilioStatus: () => request('GET', '/twilio/status'),
   connectTwilio: (data) => request('POST', '/twilio/connect', data),
   disconnectTwilio: () => request('DELETE', '/twilio/disconnect'),
+
+  // Stripe (paiement en ligne)
+  getStripeStatus: () => request('GET', '/stripe/status'),
+  connectStripe: (secretKey) => request('POST', '/stripe/connect', { secretKey }),
+  disconnectStripe: () => request('DELETE', '/stripe/disconnect'),
+  getInvoicePaymentLink: (id) => request('POST', `/invoices/${id}/payment-link`),
   getTwilioToken: () => request('POST', '/twilio/token'),
   saveTwilioGreeting: (greeting) => request('POST', '/twilio/voicemail-greeting', { greeting }),
   uploadTwilioGreetingAudio: (file) => {
