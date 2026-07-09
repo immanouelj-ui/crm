@@ -401,7 +401,7 @@ export default function Accounting() {
               </div>
 
               <p className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg">
-                💡 Vous trouverez vos identifiants Quonto dans votre tableau de bord à l'adresse <a href="https://conto.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">conto.com</a>
+                💡 Vous trouverez vos identifiants Quonto dans votre tableau de bord à l'adresse <a href="https://quonto.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">quonto.com</a>
               </p>
             </div>
 
