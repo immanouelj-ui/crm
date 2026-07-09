@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, Clock, AlertCircle, CreditCard, Wallet,
   BarChart3, RefreshCw, Calendar, Settings, X, ChevronRight, Download,
-  DollarSign, CheckCircle, Eye, Bank
+  DollarSign, CheckCircle, Eye, Landmark
 } from 'lucide-react';
 
 const BASE = '/api';
@@ -325,7 +325,7 @@ export default function Accounting() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Bank className="w-5 h-5 text-blue-600" />
+                  <Landmark className="w-5 h-5 text-blue-600" />
                   Intégration Conto
                 </h3>
                 <p className="text-slate-600 mt-1">
@@ -366,7 +366,7 @@ export default function Accounting() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <Bank className="w-5 h-5 text-blue-600" />
+                <Landmark className="w-5 h-5 text-blue-600" />
                 Connecter Conto
               </h2>
               <button
