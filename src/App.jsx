@@ -12,6 +12,7 @@ import Reports from './components/Reports.jsx';
 import ApiDocs from './components/ApiDocs.jsx';
 import Messaging from './components/Messaging.jsx';
 import Billing from './components/Billing.jsx';
+import Accounting from './components/Accounting.jsx';
 import Team from './components/Team.jsx';
 import Planning from './components/Planning.jsx';
 import Automations from './components/Automations.jsx';
@@ -134,6 +135,7 @@ export default function App() {
     ...(can('contacts') && isEnabled('contacts') && { contacts: <ContactsGrid selectedContact={selectedContact} onSelectContact={setSelectedContactId} /> }),
     ...(can('opportunities') && isEnabled('pipeline') && { pipeline: <Pipeline onSelectContact={setSelectedContactId} /> }),
     ...(can('billing') && isEnabled('billing') && { billing: <Billing pendingDoc={pendingBillingDoc} onPendingDocConsumed={() => setPendingBillingDoc(null)} /> }),
+    ...(can('billing') && isEnabled('billing') && { accounting: <Accounting /> }),
     ...(can('messaging') && isEnabled('messaging') && { messaging: <Messaging /> }),
     ...(can('contacts') && { campaigns: <Campaigns /> }),
     ...((isAdmin || (perms.appointments_level && perms.appointments_level !== 'none')) && isEnabled('planning') && { planning: <Planning /> }),
