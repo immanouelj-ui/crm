@@ -201,6 +201,7 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
   const [showContactDrop, setShowContactDrop] = useState(false);
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
   const [paymentLinkCopied, setPaymentLinkCopied] = useState(false);
+  const [chargingBalance, setChargingBalance] = useState(false);
 
   async function handlePaymentLink() {
     setPaymentLinkLoading(true);
@@ -213,6 +214,19 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
       setError(e.message);
     } finally {
       setPaymentLinkLoading(false);
+    }
+  }
+
+  async function handleChargeBalance() {
+    if (!window.confirm(`Encaisser le solde de ${(invoice.balance_due || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € sur la carte enregistrée ?`)) return;
+    setChargingBalance(true);
+    try {
+      await apiFetch('POST', `/invoices/${invoice.id}/charge-balance`);
+      onSaved({ ...invoice, status: 'paid', balance_due: 0 });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setChargingBalance(false);
     }
   }
 
@@ -302,6 +316,13 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
                   {paymentLinkCopied ? 'Lien copié !' : 'Lien de paiement'}
                 </button>
               )}
+              {invoice.balance_due > 0 && invoice.stripe_payment_method_id && (
+                <button onClick={handleChargeBalance} disabled={chargingBalance}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50 font-medium">
+                  {chargingBalance ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  Encaisser le solde ({invoice.balance_due.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €)
+                </button>
+              )}
             </>
           )}
           <button onClick={save} disabled={saving}
@@ -313,6 +334,13 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
       </div>
 
       {error && <div className="mx-6 mt-2 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
+
+      {invoice.payment_plan === 'deposit' && invoice.balance_due > 0 && (
+        <div className="mx-6 mt-2 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <CreditCard className="w-4 h-4 flex-shrink-0" />
+          Acompte de {(invoice.deposit_amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € payé — solde de {invoice.balance_due.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € à encaisser le jour de l'installation.
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto px-6 py-4">
         <div className="max-w-4xl mx-auto space-y-4">

@@ -182,6 +182,7 @@ export const api = {
   connectStripe: (secretKey) => request('POST', '/stripe/connect', { secretKey }),
   disconnectStripe: () => request('DELETE', '/stripe/disconnect'),
   getInvoicePaymentLink: (id) => request('POST', `/invoices/${id}/payment-link`),
+  chargeInvoiceBalance: (id) => request('POST', `/invoices/${id}/charge-balance`),
   getTwilioToken: () => request('POST', '/twilio/token'),
   saveTwilioGreeting: (greeting) => request('POST', '/twilio/voicemail-greeting', { greeting }),
   uploadTwilioGreetingAudio: (file) => {
