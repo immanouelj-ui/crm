@@ -706,6 +706,7 @@ function WhatsAppQrPanel() {
 
 function WhatsAppCloudPanel() {
   const [phoneId, setPhoneId] = useState('');
+  const [wabaId, setWabaId] = useState('');
   const [token, setToken] = useState('');
   const [tokenSet, setTokenSet] = useState(false);
   const [showToken, setShowToken] = useState(false);
@@ -715,7 +716,7 @@ function WhatsAppCloudPanel() {
 
   useEffect(() => {
     api.getWhatsAppConfig()
-      .then(c => { setPhoneId(c.phone_id || ''); setTokenSet(!!c.token_set); })
+      .then(c => { setPhoneId(c.phone_id || ''); setWabaId(c.waba_id || ''); setTokenSet(!!c.token_set); })
       .catch(() => {});
   }, []);
 
@@ -723,7 +724,7 @@ function WhatsAppCloudPanel() {
     setSaving(true);
     setFeedback(null);
     try {
-      const payload = { provider: 'cloud', phone_id: phoneId };
+      const payload = { provider: 'cloud', phone_id: phoneId, waba_id: wabaId };
       if (token) payload.token = token; // n'envoie le token que s'il a été (re)saisi
       await api.saveWhatsAppConfig(payload);
       if (token) { setTokenSet(true); setToken(''); }
@@ -770,6 +771,20 @@ function WhatsAppCloudPanel() {
             placeholder="Ex : 123456789012345"
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2E86C1]/30 focus:border-[#2E86C1] outline-none"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">
+            ID du compte WhatsApp Business <span className="text-slate-400 font-normal">— optionnel</span>
+          </label>
+          <input
+            type="text"
+            value={wabaId}
+            onChange={e => setWabaId(e.target.value)}
+            placeholder="Ex : 4014737838831691"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2E86C1]/30 focus:border-[#2E86C1] outline-none"
+          />
+          <p className="text-xs text-slate-400 mt-1">Permet de charger automatiquement vos templates validés lors de l'envoi.</p>
         </div>
 
         <div>

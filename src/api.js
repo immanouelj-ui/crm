@@ -170,6 +170,8 @@ export const api = {
   getWhatsAppConfig: () => request('GET', '/messaging/whatsapp/config'),
   saveWhatsAppConfig: (data) => request('POST', '/messaging/whatsapp/config', data),
   testWhatsAppConfig: () => request('POST', '/messaging/whatsapp/config/test'),
+  getWhatsAppTemplatesList: () => request('GET', '/messaging/whatsapp/templates-list'),
+  sendWhatsAppTemplate: (data) => request('POST', '/messaging/whatsapp/send-template', data),
   // SSE stream — retourne un EventSource (pas un fetch)
   whatsAppStatusStream: () => {
     const token = localStorage.getItem('crm_token');

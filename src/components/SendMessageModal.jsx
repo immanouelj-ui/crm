@@ -357,6 +357,10 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [provider, setProvider] = useState('baileys');
+  const [sendMode, setSendMode] = useState('text'); // 'text' | 'template' (Cloud uniquement)
+  const [cloudTemplates, setCloudTemplates] = useState([]);
+  const [selectedTplName, setSelectedTplName] = useState('');
+  const [tplVars, setTplVars] = useState([]); // valeurs des variables {{1}}, {{2}}…
   const bodyRef = useRef();
   const esRef = useRef(null);
 
@@ -369,6 +373,14 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
       const prov = c.provider || 'baileys';
       setProvider(prov);
       api.getWhatsAppStatus().then(s => { setWaStatus(s.status); setQrDataUrl(s.qr); }).catch(() => {});
+
+      if (prov === 'cloud') {
+        // En API Cloud, on privilégie le template (seul moyen d'écrire en 1er / hors 24h)
+        setSendMode('template');
+        api.getWhatsAppTemplatesList()
+          .then(list => setCloudTemplates(Array.isArray(list) ? list.filter(t => t.status === 'APPROVED') : []))
+          .catch(() => setCloudTemplates([]));
+      }
 
       if (prov === 'baileys') {
         es = api.whatsAppStatusStream();
@@ -414,12 +426,41 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
     await api.connectWhatsApp().catch(() => setConnecting(false));
   }
 
+  const selectedTpl = cloudTemplates.find(t => t.name === selectedTplName) || null;
+
+  function selectCloudTemplate(nameVal) {
+    setSelectedTplName(nameVal);
+    const tpl = cloudTemplates.find(t => t.name === nameVal);
+    const count = tpl?.varCount || 0;
+    // pré-remplit la 1ère variable avec le prénom du contact, le reste vide
+    const cdLocal = contact?.custom_data || {};
+    const firstName = (cdLocal.nom || cdLocal.name || '').split(' ')[0] || '';
+    setTplVars(Array.from({ length: count }, (_, i) => (i === 0 ? firstName : '')));
+  }
+
+  // Aperçu du template avec les variables remplies
+  function templatePreview() {
+    if (!selectedTpl) return '';
+    return (selectedTpl.bodyText || '').replace(/\{\{(\d+)\}\}/g, (_, n) => tplVars[n - 1] || `{{${n}}}`);
+  }
+
   async function handleSend() {
     setError(null);
     setSending(true);
-    const finalBody = fillVariables(body, contact);
     try {
-      await api.sendWhatsApp({ contact_id: contact?.id || null, phone, body: finalBody });
+      if (provider === 'cloud' && sendMode === 'template') {
+        await api.sendWhatsAppTemplate({
+          contact_id: contact?.id || null,
+          phone,
+          template_name: selectedTpl.name,
+          language_code: selectedTpl.language || 'fr',
+          variables: tplVars,
+          preview: templatePreview(),
+        });
+      } else {
+        const finalBody = fillVariables(body, contact);
+        await api.sendWhatsApp({ contact_id: contact?.id || null, phone, body: finalBody });
+      }
       setSent(true);
       setTimeout(() => { onSent && onSent(); onClose(); }, 1800);
     } catch (err) {
@@ -432,6 +473,9 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   const cd = contact?.custom_data || {};
   const name = cd.nom || cd.name || `Contact #${contact?.id}`;
   const isConnected = waStatus === 'connected';
+  const isCloudTemplate = provider === 'cloud' && sendMode === 'template';
+  // Peut-on envoyer ? (template : un template choisi ; texte : un corps non vide)
+  const canSend = isConnected && phone.trim() && (isCloudTemplate ? !!selectedTpl : body.trim());
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -496,18 +540,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
             </div>
           )}
 
-          {/* ─ Message form (visible même si non connecté pour préparer) ─ */}
-          {templates.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Modèle</label>
-              <select onChange={e => applyTemplate(e.target.value)} defaultValue=""
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 bg-white">
-                <option value="">— Choisir un modèle —</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-          )}
-
+          {/* ─ Numéro ─ */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Numéro WhatsApp</label>
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+33612345678"
@@ -515,13 +548,88 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
             {phone && <p className="text-xs text-slate-400 mt-1 font-mono">Formaté : +{normalizePhone(phone)}</p>}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Message</label>
-            <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)}
-              placeholder="Votre message…" rows={7}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-none" />
-            <VariableChips onInsert={insertVar} />
-          </div>
+          {/* ─ Sélecteur de mode (API Cloud uniquement) ─ */}
+          {provider === 'cloud' && (
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+              <button onClick={() => setSendMode('template')}
+                className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${sendMode === 'template' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>
+                📋 Template
+              </button>
+              <button onClick={() => setSendMode('text')}
+                className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${sendMode === 'text' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>
+                💬 Texte libre
+              </button>
+            </div>
+          )}
+
+          {/* ─ Mode Template (API Cloud) ─ */}
+          {isCloudTemplate ? (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Template validé par Meta</label>
+                {cloudTemplates.length > 0 ? (
+                  <select value={selectedTplName} onChange={e => selectCloudTemplate(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 bg-white">
+                    <option value="">— Choisir un template —</option>
+                    {cloudTemplates.map(t => <option key={`${t.name}_${t.language}`} value={t.name}>{t.name} ({t.language})</option>)}
+                  </select>
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    Aucun template chargé. Renseignez l'ID du compte WhatsApp Business dans Paramètres → Messagerie → WhatsApp pour les charger automatiquement.
+                  </p>
+                )}
+              </div>
+
+              {selectedTpl && selectedTpl.varCount > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-500">Variables du template</label>
+                  {Array.from({ length: selectedTpl.varCount }).map((_, i) => (
+                    <input key={i} value={tplVars[i] || ''}
+                      onChange={e => { const v = [...tplVars]; v[i] = e.target.value; setTplVars(v); }}
+                      placeholder={`Variable {{${i + 1}}}`}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200" />
+                  ))}
+                </div>
+              )}
+
+              {selectedTpl && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Aperçu</label>
+                  <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                    {templatePreview()}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {templates.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Modèle</label>
+                  <select onChange={e => applyTemplate(e.target.value)} defaultValue=""
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 bg-white">
+                    <option value="">— Choisir un modèle —</option>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {provider === 'cloud' && sendMode === 'text' && (
+                <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  Le texte libre n'est délivré que si le contact vous a écrit dans les dernières 24h. Sinon, utilisez un template.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Message</label>
+                <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)}
+                  placeholder="Votre message…" rows={7}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-none" />
+                <VariableChips onInsert={insertVar} />
+              </div>
+            </>
+          )}
 
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
@@ -546,7 +654,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
           <div className="flex-1" />
           <button
             onClick={handleSend}
-            disabled={sending || sent || !phone.trim() || !body.trim() || !isConnected}
+            disabled={sending || sent || !canSend}
             className="flex items-center gap-2 px-5 py-2 bg-[#25D366] text-white text-sm font-medium rounded-xl hover:bg-[#1fbb57] disabled:opacity-40 transition-colors"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
