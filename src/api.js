@@ -166,6 +166,10 @@ export const api = {
   getWhatsAppStatus: () => request('GET', '/messaging/whatsapp/status'),
   connectWhatsApp: () => request('POST', '/messaging/whatsapp/connect'),
   disconnectWhatsApp: () => request('POST', '/messaging/whatsapp/disconnect'),
+  // WhatsApp : choix du fournisseur (QR code ou API Cloud officielle)
+  getWhatsAppConfig: () => request('GET', '/messaging/whatsapp/config'),
+  saveWhatsAppConfig: (data) => request('POST', '/messaging/whatsapp/config', data),
+  testWhatsAppConfig: () => request('POST', '/messaging/whatsapp/config/test'),
   // SSE stream — retourne un EventSource (pas un fetch)
   whatsAppStatusStream: () => {
     const token = localStorage.getItem('crm_token');

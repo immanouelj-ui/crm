@@ -4,6 +4,7 @@ import {
   Mail, MessageSquare, Plus, Trash2, Save, Eye, EyeOff,
   ChevronDown, ChevronUp, AlertCircle, CheckCircle, Loader2,
   Wifi, WifiOff, RefreshCw, Clock, Search, X, User, Phone, Smartphone,
+  Cloud, QrCode, ExternalLink,
 } from 'lucide-react';
 
 // ── Variable chips ───────────────────────────────────────────────────────────
@@ -501,6 +502,76 @@ function SmtpSettings() {
 // ── WhatsApp Connection tab ──────────────────────────────────────────────────
 
 function WhatsAppSettings() {
+  const [provider, setProvider] = useState(null); // null tant que la config n'est pas chargée
+  const [savingProvider, setSavingProvider] = useState(false);
+
+  // Charge le fournisseur choisi au montage
+  useEffect(() => {
+    api.getWhatsAppConfig()
+      .then(c => setProvider(c.provider || 'baileys'))
+      .catch(() => setProvider('baileys'));
+  }, []);
+
+  async function changeProvider(next) {
+    if (next === provider || savingProvider) return;
+    setSavingProvider(true);
+    try {
+      await api.saveWhatsAppConfig({ provider: next });
+      setProvider(next);
+    } catch {}
+    setSavingProvider(false);
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-8 max-w-lg mx-auto w-full">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center">
+          <MessageSquare className="w-5 h-5 text-[#25D366]" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Connexion WhatsApp</h2>
+          <p className="text-xs text-slate-500">Choisissez comment envoyer vos messages WhatsApp depuis le CRM</p>
+        </div>
+      </div>
+
+      {/* Sélecteur de méthode */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <button
+          onClick={() => changeProvider('baileys')}
+          disabled={savingProvider}
+          className={`text-left rounded-2xl border-2 p-4 transition-colors ${
+            provider === 'baileys' ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <QrCode className={`w-5 h-5 mb-2 ${provider === 'baileys' ? 'text-[#25D366]' : 'text-slate-400'}`} />
+          <p className="text-sm font-semibold text-slate-900">QR Code</p>
+          <p className="text-xs text-slate-500 mt-0.5">Scan rapide, gratuit. Non officiel.</p>
+        </button>
+        <button
+          onClick={() => changeProvider('cloud')}
+          disabled={savingProvider}
+          className={`text-left rounded-2xl border-2 p-4 transition-colors ${
+            provider === 'cloud' ? 'border-[#2E86C1] bg-[#2E86C1]/5' : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <Cloud className={`w-5 h-5 mb-2 ${provider === 'cloud' ? 'text-[#2E86C1]' : 'text-slate-400'}`} />
+          <p className="text-sm font-semibold text-slate-900">API officielle</p>
+          <p className="text-xs text-slate-500 mt-0.5">Meta Cloud API. Fiable, pro.</p>
+        </button>
+      </div>
+
+      {provider === 'cloud' ? <WhatsAppCloudPanel /> : provider === 'baileys' ? <WhatsAppQrPanel /> : (
+        <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Panneau QR code (Baileys) ────────────────────────────────────────────────
+
+function WhatsAppQrPanel() {
   const [status, setStatus] = useState('disconnected');
   const [qr, setQr] = useState(null);
   const [connecting, setConnecting] = useState(false);
@@ -549,17 +620,7 @@ function WhatsAppSettings() {
   const sc = statusCfg[status] || statusCfg.disconnected;
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-lg mx-auto w-full">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center">
-          <MessageSquare className="w-5 h-5 text-[#25D366]" />
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-slate-900">Connexion WhatsApp</h2>
-          <p className="text-xs text-slate-500">Liez votre compte WhatsApp pour envoyer des messages depuis le CRM</p>
-        </div>
-      </div>
-
+    <div>
       {/* Status badge */}
       <div className="flex items-center gap-2 mb-6">
         <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full border ${sc.color}`}>
@@ -637,6 +698,136 @@ function WhatsAppSettings() {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Panneau API Cloud officielle (Meta) ──────────────────────────────────────
+
+function WhatsAppCloudPanel() {
+  const [phoneId, setPhoneId] = useState('');
+  const [token, setToken] = useState('');
+  const [tokenSet, setTokenSet] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { type: 'ok'|'err', msg }
+
+  useEffect(() => {
+    api.getWhatsAppConfig()
+      .then(c => { setPhoneId(c.phone_id || ''); setTokenSet(!!c.token_set); })
+      .catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const payload = { provider: 'cloud', phone_id: phoneId };
+      if (token) payload.token = token; // n'envoie le token que s'il a été (re)saisi
+      await api.saveWhatsAppConfig(payload);
+      if (token) { setTokenSet(true); setToken(''); }
+      setFeedback({ type: 'ok', msg: 'Configuration enregistrée.' });
+    } catch (e) {
+      setFeedback({ type: 'err', msg: e.message || "Échec de l'enregistrement." });
+    }
+    setSaving(false);
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    setFeedback(null);
+    try {
+      const r = await api.testWhatsAppConfig();
+      setFeedback({ type: 'ok', msg: `Connecté à ${r.name || 'votre numéro'} (${r.phone || '—'}).` });
+    } catch (e) {
+      setFeedback({ type: 'err', msg: e.message || 'Test échoué.' });
+    }
+    setTesting(false);
+  }
+
+  return (
+    <div>
+      <div className="rounded-2xl border border-[#2E86C1]/20 bg-[#2E86C1]/5 p-4 mb-5 text-xs text-slate-600 space-y-1.5">
+        <p className="font-semibold text-slate-800">Où trouver ces informations ?</p>
+        <p>Sur <strong>developers.facebook.com</strong> → votre app → WhatsApp → <strong>Configuration de l'API</strong>.</p>
+        <a
+          href="https://developers.facebook.com/apps"
+          target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-1 text-[#2E86C1] font-medium hover:underline"
+        >
+          Ouvrir l'espace Meta <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Phone number ID</label>
+          <input
+            type="text"
+            value={phoneId}
+            onChange={e => setPhoneId(e.target.value)}
+            placeholder="Ex : 123456789012345"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2E86C1]/30 focus:border-[#2E86C1] outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">
+            Token d'accès {tokenSet && <span className="text-emerald-600 font-normal">— déjà enregistré</span>}
+          </label>
+          <div className="relative">
+            <input
+              type={showToken ? 'text' : 'password'}
+              value={token}
+              onChange={e => setToken(e.target.value)}
+              placeholder={tokenSet ? '•••••••••• (laisser vide pour garder)' : 'Collez votre token ici'}
+              className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2E86C1]/30 focus:border-[#2E86C1] outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowToken(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">Le token de test expire après 24h. Pour un usage durable, générez un token permanent.</p>
+        </div>
+
+        {feedback && (
+          <div className={`flex items-start gap-2 text-xs rounded-xl px-3 py-2 ${
+            feedback.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {feedback.type === 'ok' ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+            <span>{feedback.msg}</span>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving || !phoneId}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#2E86C1] text-white text-sm font-medium rounded-xl hover:bg-[#256fa1] disabled:opacity-50 transition-colors"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Enregistrer
+          </button>
+          <button
+            onClick={handleTest}
+            disabled={testing || !phoneId || (!tokenSet && !token)}
+            className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+            Tester la connexion
+          </button>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-400 mt-5 leading-relaxed">
+        ⚠️ En API officielle, un 1er message vers un contact nécessite un <strong>modèle validé</strong> par Meta.
+        Le texte libre n'est possible que dans les 24h suivant un message reçu du contact.
+      </p>
     </div>
   );
 }
