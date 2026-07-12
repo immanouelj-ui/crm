@@ -356,24 +356,36 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   const [waStatus, setWaStatus] = useState('disconnected');
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [provider, setProvider] = useState('baileys');
   const bodyRef = useRef();
   const esRef = useRef(null);
 
-  // Charge statut + ouvre SSE
+  // Charge statut + ouvre le flux SSE (uniquement en mode QR code / Baileys).
+  // En mode API Cloud, il n'y a pas de session à suivre : un simple statut suffit,
+  // et surtout il ne faut PAS ouvrir le flux Baileys qui écraserait l'état "connecté".
   useEffect(() => {
-    api.getWhatsAppStatus().then(s => { setWaStatus(s.status); setQrDataUrl(s.qr); }).catch(() => {});
+    let es = null;
+    api.getWhatsAppConfig().then(c => {
+      const prov = c.provider || 'baileys';
+      setProvider(prov);
+      api.getWhatsAppStatus().then(s => { setWaStatus(s.status); setQrDataUrl(s.qr); }).catch(() => {});
 
-    const es = api.whatsAppStatusStream();
-    esRef.current = es;
-    es.onmessage = e => {
-      try {
-        const d = JSON.parse(e.data);
-        setWaStatus(d.status);
-        setQrDataUrl(d.qr || null);
-        if (d.status === 'connected') setConnecting(false);
-      } catch {}
-    };
-    return () => es.close();
+      if (prov === 'baileys') {
+        es = api.whatsAppStatusStream();
+        esRef.current = es;
+        es.onmessage = e => {
+          try {
+            const d = JSON.parse(e.data);
+            setWaStatus(d.status);
+            setQrDataUrl(d.qr || null);
+            if (d.status === 'connected') setConnecting(false);
+          } catch {}
+        };
+      }
+    }).catch(() => {
+      api.getWhatsAppStatus().then(s => { setWaStatus(s.status); setQrDataUrl(s.qr); }).catch(() => {});
+    });
+    return () => { if (es) es.close(); };
   }, []);
 
   useEffect(() => {
@@ -459,6 +471,11 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
                 <div className="flex items-center gap-3 text-blue-700">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm">Connexion en cours, le QR code arrive…</span>
+                </div>
+              ) : provider === 'cloud' ? (
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">API WhatsApp non configurée</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Renseignez le Phone number ID et le token dans Paramètres → Messagerie → WhatsApp.</p>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
