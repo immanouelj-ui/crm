@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { api } from '../api.js';
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
-  X, Plus, Trash2, Eye, EyeOff, GripVertical,
+  X, Plus, Trash2, Eye, EyeOff, GripVertical, ArrowUp, ArrowDown, ArrowLeft,
   Type, Mail, Phone, Hash, Calendar, ChevronDown, CheckSquare
 } from 'lucide-react';
 
@@ -41,7 +44,7 @@ function serializeOptions(arr) {
 
 function ColorPicker({ value, onChange }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {PRESET_COLORS.map(c => (
         <button
           key={c.name}
@@ -61,6 +64,51 @@ function ColorPicker({ value, onChange }) {
   );
 }
 
+function SortableField({ field, index, count, selected, disabled, onEdit, onMove, onVisible, onDelete }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: field.id, disabled,
+  });
+  const type = FIELD_TYPES.find(item => item.value === field.type);
+  const Icon = type?.icon || Type;
+  const actionClass = 'inline-flex min-h-9 min-w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30';
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, position: 'relative', zIndex: isDragging ? 10 : undefined }}
+      className={`flex items-center gap-1 border-b border-slate-100 bg-white px-1 py-2 ${selected ? 'bg-indigo-50 ring-1 ring-inset ring-indigo-200' : ''} ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        disabled={disabled}
+        aria-label={`Déplacer le champ ${field.label}`}
+        title="Glisser pour déplacer"
+        className="flex min-h-11 min-w-9 touch-none select-none items-center justify-center rounded text-slate-400 cursor-grab active:cursor-grabbing disabled:opacity-30"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <button type="button" disabled={disabled} onClick={() => onEdit(field)} className="flex min-w-0 flex-1 items-center gap-2 rounded py-2 text-left hover:text-indigo-600">
+        <Icon className="hidden h-3.5 w-3.5 shrink-0 text-slate-400 sm:block" />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-slate-800">{field.label}</span>
+          <span className="block text-xs text-slate-400">{type?.label || field.type}</span>
+        </span>
+      </button>
+      <div className="flex shrink-0 flex-col">
+        <button type="button" className={actionClass} disabled={disabled || index === 0} aria-label={`Monter le champ ${field.label}`} onClick={() => onMove(index, -1)}><ArrowUp className="h-3.5 w-3.5" /></button>
+        <button type="button" className={actionClass} disabled={disabled || index === count - 1} aria-label={`Descendre le champ ${field.label}`} onClick={() => onMove(index, 1)}><ArrowDown className="h-3.5 w-3.5" /></button>
+      </div>
+      <button type="button" disabled={disabled} onClick={() => onVisible(field)} className={actionClass} aria-label={`${field.visible ? 'Masquer' : 'Afficher'} le champ ${field.label}`}>
+        {field.visible ? <Eye className="h-4 w-4 text-indigo-500" /> : <EyeOff className="h-4 w-4" />}
+      </button>
+      <button type="button" disabled={disabled} onClick={() => onDelete(field.id)} className={actionClass} aria-label={`Supprimer le champ ${field.label}`}><Trash2 className="h-4 w-4" /></button>
+    </div>
+  );
+}
+
 export default function FieldManager({ fields: initialFields, onClose, onSaved }) {
   const [fields, setFields] = useState(initialFields);
   const [selectedField, setSelectedField] = useState(null);
@@ -73,6 +121,12 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
   const [newOptionColorForNew, setNewOptionColorForNew] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [reordering, setReordering] = useState(false);
+  const reorderLock = useRef(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   function startEdit(field) {
     setSelectedField(field);
@@ -109,14 +163,38 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
     onSaved();
   }
 
-  async function moveField(index, direction) {
-    const newFields = [...fields];
-    const swapIndex = index + direction;
-    if (swapIndex < 0 || swapIndex >= newFields.length) return;
-    [newFields[index], newFields[swapIndex]] = [newFields[swapIndex], newFields[index]];
-    setFields(newFields);
-    await Promise.all(newFields.map((f, i) => api.updateField(f.id, { position: i })));
-    onSaved();
+  async function reorderFields(from, to) {
+    if (reorderLock.current || saving || from === to || from < 0 || to < 0 || to >= fields.length) return;
+    reorderLock.current = true;
+    setReordering(true);
+    setError('');
+    const before = fields;
+    const next = arrayMove(fields, from, to).map((field, position) => ({ ...field, position }));
+    setFields(next);
+    try {
+      const results = await Promise.allSettled(next.map(field => api.updateField(field.id, { position: field.position })));
+      if (results.some(result => result.status === 'rejected')) {
+        await Promise.allSettled(before.map((field, index) => api.updateField(field.id, { position: field.position ?? index })));
+        throw new Error("Impossible d’enregistrer l’ordre des champs. Vérifie la connexion puis réessaie.");
+      }
+      await onSaved();
+    } catch (error) {
+      setFields(before);
+      try { setFields(await api.getFields()); } catch { /* Keep the last known order. */ }
+      setError(error.message);
+    } finally {
+      reorderLock.current = false;
+      setReordering(false);
+    }
+  }
+
+  function moveField(index, direction) {
+    return reorderFields(index, index + direction);
+  }
+
+  function endDrag({ active, over }) {
+    if (!over) return;
+    return reorderFields(fields.findIndex(field => field.id === active.id), fields.findIndex(field => field.id === over.id));
   }
 
   async function deleteField(id) {
@@ -176,18 +254,18 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90dvh] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">Gestion des champs</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <button onClick={onClose} disabled={reordering} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Left panel: field list */}
-          <div className="w-64 border-r border-slate-200 flex flex-col overflow-hidden">
+          <div className={`w-full shrink-0 flex-col overflow-hidden border-slate-200 md:flex md:w-80 md:border-r ${selectedField ? 'hidden' : 'flex'}`}>
             <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
               {error && (
                 <div className="mx-3 mb-2 bg-red-50 border border-red-200 text-red-700 rounded-lg p-2 text-xs">
@@ -195,39 +273,17 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
                 </div>
               )}
 
-              {fields.map((field, index) => {
-                const typeConf = FIELD_TYPES.find(t => t.value === field.type);
-                const Icon = typeConf?.icon || Type;
-                const isSelected = selectedField?.id === field.id;
-                return (
-                  <div
-                    key={field.id}
-                    onClick={() => startEdit(field)}
-                    className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 border-r-2 border-indigo-500' : 'hover:bg-slate-50'}`}
-                  >
-                    <GripVertical className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
-                    <Icon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{field.label}</p>
-                      <p className="text-xs text-slate-400">{typeConf?.label || field.type}</p>
-                    </div>
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleVisible(field); }}
-                        className={`p-1 rounded transition-colors ${field.visible ? 'text-indigo-500 hover:bg-indigo-50' : 'text-slate-300 hover:bg-slate-100'}`}
-                      >
-                        {field.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteField(field.id); }}
-                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={endDrag}>
+                <SortableContext items={fields.map(field => field.id)} strategy={verticalListSortingStrategy}>
+                  {fields.map((field, index) => (
+                    <SortableField key={field.id} field={field} index={index} count={fields.length}
+                      selected={selectedField?.id === field.id} disabled={saving || reordering}
+                      onEdit={startEdit} onMove={moveField} onVisible={toggleVisible} onDelete={deleteField}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+              {reordering && <p role="status" className="px-3 py-2 text-xs text-indigo-600">Enregistrement de l’ordre…</p>}
             </div>
 
             {/* New field form */}
@@ -274,7 +330,7 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
               )}
               <button
                 onClick={addNewField}
-                disabled={saving || !newField.label.trim()}
+                disabled={saving || reordering || !newField.label.trim()}
                 className="w-full py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -284,9 +340,12 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
           </div>
 
           {/* Right panel: edit */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className={`min-w-0 flex-1 overflow-y-auto scrollbar-thin ${selectedField ? 'block' : 'hidden md:block'}`}>
             {selectedField ? (
               <div className="p-5 space-y-4">
+                <button type="button" onClick={() => setSelectedField(null)} className="flex min-h-10 items-center gap-2 text-sm text-indigo-600 md:hidden">
+                  <ArrowLeft className="h-4 w-4" /> Liste des champs
+                </button>
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-1">Modifier le champ</h3>
                   <p className="text-xs text-slate-400">Identifiant : <span className="font-mono">{selectedField.name}</span></p>
@@ -315,8 +374,8 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
                     <label className="block text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">Options</label>
                     <div className="space-y-2 mb-3">
                       {editOptions.map((opt, i) => (
-                        <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
-                          <div className="flex gap-1">
+                        <div key={i} className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                          <div className="flex flex-wrap gap-1">
                             {PRESET_COLORS.map(c => (
                               <button
                                 key={c.name}
@@ -391,7 +450,7 @@ export default function FieldManager({ fields: initialFields, onClose, onSaved }
         </div>
 
         <div className="border-t border-slate-200 px-6 py-3">
-          <button onClick={onClose} className="w-full py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+          <button onClick={onClose} disabled={reordering} className="w-full py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
             Fermer
           </button>
         </div>
