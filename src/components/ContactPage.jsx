@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
+import InstallerAssignment from './InstallerAssignment.jsx';
 import QontoContactButton from './QontoContactButton.jsx';
 import ContactMap, { getBuildingAddress, GoogleMapsLink } from './ContactMap.jsx';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
@@ -744,6 +745,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   const [tasks, setTasks] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [installers, setInstallers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
@@ -763,6 +765,14 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     ]);
     const c = contactList.find(x => x.id === contactId);
     setContact(c);
+    const installerMap = new Map();
+    for (const client of contactList) {
+      const values = client.custom_data || {};
+      if (values.installateur_nom && values.installateur_telephone) {
+        installerMap.set(values.installateur_telephone, { name: values.installateur_nom, phone: values.installateur_telephone });
+      }
+    }
+    setInstallers([...installerMap.values()]);
     setFields(fieldList);
     setInteractions(ints);
     setTasks(ts);
@@ -1058,6 +1068,21 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         {/* ── LEFT: Properties ── */}
         <div className="w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:overflow-y-auto flex-shrink-0 px-5 py-5">
 
+          {canMessage && (
+            <InstallerAssignment
+              key={contactId}
+              contact={contact}
+              appointments={appointments}
+              fields={fields}
+              installers={installers}
+              onSave={async (values) => {
+                const updated = await api.updateContact(contact.id, { custom_data: { ...contact.custom_data, ...values } });
+                setContact(previous => ({ ...previous, custom_data: updated.custom_data }));
+              }}
+              onSend={setSendModal}
+            />
+          )}
+
           {/* COORDONNÉES — dynamic from fields table, mirrors grid columns */}
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Coordonnées</p>
 
@@ -1177,6 +1202,9 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
             contact={contact}
             fields={fields}
             type={sendModal.type}
+            initialPhone={sendModal.initialPhone}
+            initialBody={sendModal.initialBody}
+            recipientName={sendModal.recipientName}
             onClose={() => setSendModal(null)}
             onSent={() => { setSendModal(null); loadData(); }}
           />

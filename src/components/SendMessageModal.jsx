@@ -346,10 +346,10 @@ function WaStatusBadge({ status }) {
   );
 }
 
-function WhatsAppModal({ contact, fields, onClose, onSent }) {
+function WhatsAppModal({ contact, fields, onClose, onSent, initialPhone, initialBody, recipientName }) {
   const [templates, setTemplates] = useState([]);
   const [phone, setPhone] = useState('');
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(initialBody || '');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
@@ -376,7 +376,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
 
       if (prov === 'cloud') {
         // En API Cloud, on privilégie le template (seul moyen d'écrire en 1er / hors 24h)
-        setSendMode('template');
+        setSendMode(initialBody ? 'text' : 'template');
         api.getWhatsAppTemplatesList()
           .then(list => setCloudTemplates(Array.isArray(list) ? list.filter(t => t.status === 'APPROVED') : []))
           .catch(() => setCloudTemplates([]));
@@ -401,10 +401,10 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   }, []);
 
   useEffect(() => {
-    const raw = findPhone(contact, fields);
+    const raw = initialPhone ?? findPhone(contact, fields);
     setPhone(raw);
     api.getTemplates().then(list => setTemplates(list.filter(t => t.type === 'whatsapp'))).catch(() => {});
-  }, [contact, fields]);
+  }, [contact, fields, initialPhone]);
 
   function applyTemplate(tplId) {
     const tpl = templates.find(t => String(t.id) === String(tplId));
@@ -434,7 +434,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
     const count = tpl?.varCount || 0;
     // pré-remplit la 1ère variable avec le prénom du contact, le reste vide
     const cdLocal = contact?.custom_data || {};
-    const firstName = (cdLocal.nom || cdLocal.name || '').split(' ')[0] || '';
+    const firstName = recipientName || (cdLocal.nom || cdLocal.name || '').split(' ')[0] || '';
     setTplVars(Array.from({ length: count }, (_, i) => (i === 0 ? firstName : '')));
   }
 
@@ -471,7 +471,7 @@ function WhatsAppModal({ contact, fields, onClose, onSent }) {
   }
 
   const cd = contact?.custom_data || {};
-  const name = cd.nom || cd.name || `Contact #${contact?.id}`;
+  const name = recipientName || cd.nom || cd.name || `Contact #${contact?.id}`;
   const isConnected = waStatus === 'connected';
   const isCloudTemplate = provider === 'cloud' && sendMode === 'template';
   // Peut-on envoyer ? (template : un template choisi ; texte : un corps non vide)
@@ -807,9 +807,9 @@ function SmsModal({ contact, fields, onClose, onSent }) {
 
 // ── Exported modal switcher ──────────────────────────────────────────────────
 
-export default function SendMessageModal({ contact, fields, type, onClose, onSent }) {
+export default function SendMessageModal({ contact, fields, type, onClose, onSent, initialPhone, initialBody, recipientName }) {
   if (type === 'whatsapp') {
-    return <WhatsAppModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} />;
+    return <WhatsAppModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} initialPhone={initialPhone} initialBody={initialBody} recipientName={recipientName} />;
   }
   if (type === 'sms') {
     return <SmsModal contact={contact} fields={fields} onClose={onClose} onSent={onSent} />;
