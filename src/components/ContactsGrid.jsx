@@ -15,6 +15,7 @@ import ImportModal from './ImportModal.jsx';
 import { CreateCampaignModal } from './Campaigns.jsx';
 import { triggerCall } from '../lib/call.js';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
+import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
 
 // ── Filter logic ─────────────────────────────────────────────────────────────
 
@@ -760,18 +761,19 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           const contactId = row.original.id;
           const isEditing = editingCell?.rowId === contactId && editingCell?.fieldName === field.name;
 
+          const rawValue = getValue();
+          const { summary, notes: val } = field.name === 'notes' ? splitLeadNotes(rawValue) : { notes: rawValue };
+
           if (isEditing) {
             return (
               <CellEditor
-                value={getValue()}
+                value={val}
                 field={field}
-                onSave={(val) => saveCell(contactId, field.name, val)}
+                onSave={(newValue) => saveCell(contactId, field.name, updateLeadNotes(summary, newValue))}
                 onCancel={() => setEditingCell(null)}
               />
             );
           }
-
-          const val = getValue();
 
           if (isPhotosField(field)) {
             const urls = getPhotoUrls(val);

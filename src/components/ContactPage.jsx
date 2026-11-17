@@ -9,6 +9,7 @@ import {
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
+import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
 import { Paperclip } from 'lucide-react';
 import { triggerCall } from '../lib/call.js';
 
@@ -853,6 +854,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   // Only show fields that are visible in the grid (visible === 1)
   const visibleFields = fields.filter(f => f.visible === 1);
   const notesField = visibleFields.find(f => f.name === 'notes');
+  const { summary: leadSummary, notes } = splitLeadNotes(cd.notes);
   const photoFields = fields.filter(field => isPhotosField(field) && getPhotoUrls(cd[field.name]).length);
   const leadPhotoUrls = getPhotoUrls([cd.photos, ...photoFields.map(field => cd[field.name])].flat());
   const mainFields = visibleFields.filter(field => field.name !== 'notes' && !photoFields.includes(field));
@@ -1046,9 +1048,9 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">À propos</p>
               <EditableField
                 label={notesField.label}
-                value={cd[notesField.name]}
+                value={notes}
                 fieldDef={notesField}
-                onSave={v => saveField(notesField.name, v)}
+                onSave={v => saveField(notesField.name, updateLeadNotes(leadSummary, v))}
               />
             </>
           )}
