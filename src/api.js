@@ -248,6 +248,18 @@ export const api = {
   getStripeStatus: () => request('GET', '/stripe/status'),
   connectStripe: (secretKey) => request('POST', '/stripe/connect', { secretKey }),
   disconnectStripe: () => request('DELETE', '/stripe/disconnect'),
+  sendContactToQonto: async (contactId) => {
+    const response = await fetch(`${BASE}/qonto/contacts/${encodeURIComponent(contactId)}`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    if (response.status === 404) {
+      throw new Error('La connexion Qonto doit encore être déployée sur le backend Fly.io.');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Impossible de contacter Qonto.');
+    return data;
+  },
   getReceptionCompanyName: async () => (await request('GET', '/invoices/settings'))?.name || '',
   getInvoicePaymentLink: (id) => request('POST', `/invoices/${id}/payment-link`),
   chargeInvoiceBalance: (id) => request('POST', `/invoices/${id}/charge-balance`),

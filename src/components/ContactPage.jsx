@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
+import QontoContactButton from './QontoContactButton.jsx';
 import ContactMap, { getBuildingAddress, GoogleMapsLink } from './ContactMap.jsx';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
 import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
@@ -1020,6 +1021,8 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               <Printer className="h-4 w-4" aria-hidden="true" />
               Imprimer la fiche d’intervention
             </button>
+
+            {user?.role === 'admin' && <QontoContactButton key={contactId} contactId={contactId} />}
 
             {/* Quick stats */}
             <div className="flex items-center gap-6 mt-3 flex-wrap">
