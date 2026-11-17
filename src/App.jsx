@@ -17,6 +17,7 @@ import Planning from './components/Planning.jsx';
 import Automations from './components/Automations.jsx';
 import Settings from './components/Settings.jsx';
 import Campaigns from './components/Campaigns.jsx';
+import { disableLeadNotifications } from './lib/leadNotifications.js';
 
 export const AuthContext = createContext(null);
 
@@ -43,7 +44,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedContact, setSelectedContact] = useState(null);
-  const [selectedContactId, setSelectedContactId] = useState(null);
+  const [selectedContactId, setSelectedContactId] = useState(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('contact'));
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+  });
   const [pendingBillingDoc, setPendingBillingDoc] = useState(null);
   const [enabledModules, setEnabledModules] = useState({});
 
@@ -70,7 +74,13 @@ export default function App() {
     setUser(userData);
   }
 
-  function logout() {
+  async function logout() {
+    if ('serviceWorker' in navigator) {
+      await Promise.race([
+        disableLeadNotifications().catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 5000)),
+      ]);
+    }
     localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
     setUser(null);

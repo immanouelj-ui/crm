@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../App.jsx';
 import Softphone from './Softphone.jsx';
+import LeadNotifications from './LeadNotifications.jsx';
 import {
   LayoutDashboard, Users, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, PhoneCall, TrendingUp,
 } from 'lucide-react';
@@ -120,6 +121,7 @@ export default function Layout({ children, currentPage, onNavigate, isAdmin, per
           <h1 className="flex-1 text-sm font-semibold text-slate-900 truncate">
             {currentNav?.label || 'Tableau de bord'}
           </h1>
+          {(isAdmin || permissions?.contacts) && <LeadNotifications />}
           <div className="flex items-center gap-2">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-medium text-slate-900">{user?.name || user?.email}</p>
