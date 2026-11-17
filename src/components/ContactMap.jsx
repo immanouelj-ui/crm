@@ -25,11 +25,25 @@ export function getBuildingAddress(data) {
   return [street, locality, country].filter(Boolean).join(', ');
 }
 
-export default function ContactMap({ address }) {
-  const [showMap, setShowMap] = useState(false);
-
+export function GoogleMapsLink({ address, className, children }) {
   const mapsUrl = new URL('https://www.google.com/maps/search/');
   mapsUrl.search = new URLSearchParams({ api: '1', query: address }).toString();
+
+  return (
+    <a
+      href={mapsUrl.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1.5 text-sm font-medium ${className}`}
+    >
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      {children}
+    </a>
+  );
+}
+
+export default function ContactMap({ address }) {
+  const [showMap, setShowMap] = useState(false);
 
   const embedUrl = new URL('https://www.google.com/maps/embed/v1/place');
   if (embedKey) {
@@ -66,15 +80,9 @@ export default function ContactMap({ address }) {
           )}
         </>
       )}
-      <a
-        href={mapsUrl.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-      >
-        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      <GoogleMapsLink address={address} className="mt-3 text-indigo-600 hover:text-indigo-800">
         Voir le bâtiment dans Google Maps
-      </a>
+      </GoogleMapsLink>
     </section>
   );
 }

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
-import ContactMap, { getBuildingAddress } from './ContactMap.jsx';
+import ContactMap, { getBuildingAddress, GoogleMapsLink } from './ContactMap.jsx';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
 import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
 import { Paperclip } from 'lucide-react';
@@ -994,6 +994,17 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               <p className="text-sm text-slate-500 mt-0.5">
                 {[cd.poste, cd.company].filter(Boolean).join(' · ')}
               </p>
+            )}
+
+            {buildingAddress && (
+              <div className="mt-2 md:hidden">
+                <GoogleMapsLink
+                  address={buildingAddress}
+                  className="min-h-11 rounded-lg bg-indigo-50 px-3 py-2 text-indigo-700 hover:bg-indigo-100"
+                >
+                  Voir dans Google Maps
+                </GoogleMapsLink>
+              </div>
             )}
 
             {/* Quick stats */}
