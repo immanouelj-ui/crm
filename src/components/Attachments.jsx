@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Upload, Trash2, Download, Image, FileText, File, X, ZoomIn, AlertCircle } from 'lucide-react';
+import { Upload, Trash2, Download, ExternalLink, Image, FileText, File, X, ZoomIn, AlertCircle } from 'lucide-react';
 
 function formatBytes(bytes) {
   if (!bytes) return '';
@@ -25,7 +25,17 @@ function FileIcon({ mime }) {
   return <File className="w-5 h-5 text-slate-400" />;
 }
 
-export default function Attachments({ contactId }) {
+function leadPhotoName(url, index) {
+  const filename = new URL(url).pathname.split('/')[2];
+  if (!filename) return `Photo du devis ${index + 1}`;
+  try {
+    return decodeURIComponent(filename);
+  } catch {
+    return filename;
+  }
+}
+
+export default function Attachments({ contactId, leadPhotoUrls = [] }) {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -90,6 +100,16 @@ export default function Attachments({ contactId }) {
     handleFiles(e.dataTransfer.files);
   }
 
+  const attachedNames = new Set(attachments.map(attachment => attachment.filename));
+  const files = [...attachments, ...leadPhotoUrls.flatMap((url, index) => (
+    attachedNames.has(url) ? [] : [{
+      id: url,
+      filename: url,
+      original_name: leadPhotoName(url, index),
+      leadPhoto: true,
+    }]
+  ))];
+
   return (
     <div className="space-y-3">
       {/* Error */}
@@ -133,20 +153,21 @@ export default function Attachments({ contactId }) {
       </label>
 
       {/* List */}
-      {loading ? (
+      {loading && files.length === 0 ? (
         <div className="flex justify-center py-4">
           <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : attachments.length === 0 ? (
+      ) : files.length === 0 ? (
         <p className="text-xs text-slate-400 text-center py-1">Aucune pièce jointe</p>
       ) : (
         <div className="space-y-2">
-          {attachments.map(att => {
+          {files.map(att => {
             const url = api.getAttachmentUrl(att.filename);
+            const showsImage = att.leadPhoto || isImage(att.mime_type);
             return (
               <div key={att.id} className="group flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors">
                 {/* Thumbnail or icon */}
-                {isImage(att.mime_type) ? (
+                {showsImage ? (
                   <div
                     className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 cursor-zoom-in"
                     onClick={() => setLightbox(url)}
@@ -163,15 +184,15 @@ export default function Attachments({ contactId }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-700 truncate">{att.original_name}</p>
                   <p className="text-xs text-slate-400">
-                    {formatBytes(att.size)}
+                    {att.leadPhoto ? "Photo du formulaire de devis" : formatBytes(att.size)}
                     {att.uploaded_by && ` · ${att.uploaded_by}`}
                     {att.created_at && ` · ${formatDate(att.created_at)}`}
                   </p>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  {isImage(att.mime_type) && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+                  {showsImage && (
                     <button
                       onClick={() => setLightbox(url)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
@@ -180,21 +201,36 @@ export default function Attachments({ contactId }) {
                       <ZoomIn className="w-4 h-4" />
                     </button>
                   )}
-                  <a
-                    href={url}
-                    download={att.original_name}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
-                    title="Télécharger"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                  <button
-                    onClick={() => handleDelete(att)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-white transition-colors"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {att.leadPhoto ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
+                      title="Ouvrir la photo originale"
+                      aria-label="Ouvrir la photo originale"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  ) : (
+                    <>
+                      <a
+                        href={url}
+                        download={att.original_name}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
+                        title="Télécharger"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      <button
+                        onClick={() => handleDelete(att)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-white transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

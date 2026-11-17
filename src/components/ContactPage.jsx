@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
+import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
 import { Paperclip } from 'lucide-react';
 import { triggerCall } from '../lib/call.js';
 
@@ -852,7 +853,9 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   // Only show fields that are visible in the grid (visible === 1)
   const visibleFields = fields.filter(f => f.visible === 1);
   const notesField = visibleFields.find(f => f.name === 'notes');
-  const mainFields = visibleFields.filter(f => f.name !== 'notes');
+  const photoFields = fields.filter(field => isPhotosField(field) && getPhotoUrls(cd[field.name]).length);
+  const leadPhotoUrls = getPhotoUrls([cd.photos, ...photoFields.map(field => cd[field.name])].flat());
+  const mainFields = visibleFields.filter(field => field.name !== 'notes' && !photoFields.includes(field));
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -1300,7 +1303,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
               <Paperclip className="w-3.5 h-3.5 text-slate-400" />
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Pièces jointes</p>
             </div>
-            <Attachments contactId={contactId} />
+            <Attachments key={contactId} contactId={contactId} leadPhotoUrls={leadPhotoUrls} />
           </div>
         </div>
       </div>
