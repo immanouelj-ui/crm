@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 1000 1414.285714">
+  <title>Procès-verbal de réception des travaux</title>
+  <defs>
+    <style>
+      .text { font-family: Arial, "Liberation Sans", sans-serif; fill: #211f1d; font-size: 19px; }
+      .bold { font-weight: 700; }
+      .italic { font-style: italic; }
+      .dots { fill: none; stroke: #302c26; stroke-width: 2; stroke-linecap: round; stroke-dasharray: .1 5.2; }
+      .box { fill: none; stroke: #302c26; stroke-width: 2; }
+    </style>
+    <rect id="check" width="12" height="12" fill="none" stroke="#302c26" stroke-width="2.9"/>
+  </defs>
+
+  <rect width="1000" height="1414.285714" fill="#fff"/>
+  <rect width="70" height="1414.285714" fill="#24754c"/>
+  <g transform="translate(31 1047) rotate(-90)" font-family="Arial, Liberation Sans, sans-serif" fill="#fff">
+    <text font-size="21" font-weight="700">DOCUMENT À CONSERVER 10 ANS</text>
+  </g>
+  <g transform="translate(53 1288) rotate(-90)" font-family="Arial, Liberation Sans, sans-serif" fill="#e9f4eb">
+    <text font-size="16">La réception des travaux est indispensable pour faire valoir les garanties légales et les assurances.</text>
+  </g>
+  <rect x="7" y="1354" width="56" height="20" rx="2" fill="#253a32"/>
+  <text x="35" y="1368" text-anchor="middle" fill="#fff" font-family="Arial, Liberation Sans, sans-serif" font-size="9" font-weight="700">Qualit’EnR</text>
+
+  <g class="text bold" text-anchor="middle">
+    <text x="544" y="88" font-size="55">Procès-verbal</text>
+    <text x="544" y="140" font-size="50">Réception des travaux</text>
+  </g>
+
+  <rect x="88" y="190" width="882" height="912" rx="22" fill="#e1ead9" stroke="#728267" stroke-width="1.8"/>
+  <path d="M228 555 523 322 826 552 M278 516V858H474V709H575V858H779V516"
+        fill="none" stroke="#697968" stroke-opacity=".19" stroke-width="33" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <g class="text">
+    <text x="111" y="221">Je soussigné</text>
+    <text x="530" y="221">maître de l’ouvrage, après avoir procédé à</text>
+    <text x="111" y="258">la visite des travaux effectués par l’entreprise</text>
+    <text x="111" y="291">pour la commande en date du :</text>
+    <path class="dots" d="M233 224H522 M539 261H946 M395 295H535"/>
+
+    <text x="110" y="347"><tspan class="bold">déclare :</tspan><tspan class="italic" dx="5">(cocher la case appropriée)</tspan></text>
+    <use href="#check" x="111" y="374"/>
+    <text x="148" y="387"><tspan class="bold">Accepter la réception des travaux sans réserves</tspan> à effet du :</text>
+    <path class="dots" d="M711 389H851"/>
+    <use href="#check" x="111" y="415"/>
+    <text x="148" y="428"><tspan class="bold">Accepter la réception assortie de réserves</tspan> à effet du :</text>
+    <path class="dots" d="M661 430H804"/>
+
+    <circle cx="158" cy="457" r="3.4" fill="#211f1d"/>
+    <text class="italic" x="184" y="465">Nature des réserves :</text>
+    <path class="dots" d="M373 469H946 M151 503H946 M151 538H946 M151 574H946"/>
+    <circle cx="158" cy="597" r="3.4" fill="#211f1d"/>
+    <text class="italic" x="184" y="605">Travaux à exécuter :</text>
+    <path class="dots" d="M364 607H946 M151 641H946 M151 676H946"/>
+    <text class="italic" x="151" y="711">Délai imparti à compter de ce jour :</text>
+    <path class="dots" d="M457 713H912"/>
+
+    <text x="111" y="777">Par ailleurs, je reconnais avoir reçu : (cocher les cases appropriées)</text>
+    <use href="#check" x="111" y="804"/>
+    <text x="148" y="817">Les informations nécessaires pour le fonctionnement des matériels installés</text>
+    <use href="#check" x="111" y="844"/>
+    <text x="148" y="857">Les notices d’utilisation en français des matériels installés</text>
+    <use href="#check" x="111" y="886"/>
+    <text x="148" y="899">Les informations relatives à l’entretien et la maintenance des matériels installés</text>
+
+    <text x="111" y="947">Fait à :</text>
+    <text x="454" y="947">le</text>
+    <text x="646" y="947">en</text>
+    <text x="711" y="947">exemplaires.</text>
+    <path class="dots" d="M179 951H389 M481 951H621 M675 951H703"/>
+
+    <text x="205" y="981" font-size="17">Signature de l’entreprise :</text>
+    <text x="646" y="981" font-size="17">Signature du client :</text>
+    <rect class="box" x="205" y="993" width="252" height="85" rx="22"/>
+    <rect class="box" x="646" y="993" width="259" height="85" rx="22"/>
+  </g>
+
+  <text class="text bold" x="536" y="1135" text-anchor="middle" style="font-size:23px">Levée des réserves éventuelles</text>
+  <rect x="88" y="1148" width="882" height="232" rx="21" fill="#f9e7dc" stroke="#ba907b" stroke-width="1.5" stroke-dasharray="1.8 2.5"/>
+  <g class="text" style="font-size:16.5px">
+    <text x="123" y="1177">Le maître de l’ouvrage et l’entreprise constatent que les réserves mentionnées à la réception des travaux ont été</text>
+    <text x="123" y="1210">valablement traitées en date du :</text>
+    <path class="dots" d="M371 1213H489"/>
+    <text x="123" y="1244">Fait à :</text>
+    <text x="468" y="1244">le :</text>
+    <text x="647" y="1244">en</text>
+    <text x="707" y="1244">exemplaires.</text>
+    <path class="dots" d="M176 1247H362 M496 1247H610 M674 1247H699"/>
+
+    <text x="205" y="1280">Signature de l’entreprise :</text>
+    <text x="646" y="1280">Signature du client :</text>
+    <rect class="box" x="205" y="1290" width="252" height="75" rx="20"/>
+    <rect class="box" x="646" y="1290" width="259" height="75" rx="20"/>
+  </g>
+
+  <text class="text italic" x="90" y="1398" style="font-size:12px">Document mis à disposition par Qualit’EnR, l’association pour la qualité d’installation dans les énergies renouvelables (version 2 - décembre 2016)</text>
+</svg>
