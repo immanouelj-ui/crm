@@ -7,7 +7,6 @@ import Layout from './components/Layout.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import ContactsGrid from './components/ContactsGrid.jsx';
 import ContactPage from './components/ContactPage.jsx';
-import Pipeline from './components/Pipeline.jsx';
 import Reports from './components/Reports.jsx';
 import ApiDocs from './components/ApiDocs.jsx';
 import Messaging from './components/Messaging.jsx';
@@ -133,7 +132,6 @@ export default function App() {
   const pages = {
     ...(can('dashboard') && { dashboard: <Dashboard onNavigate={setCurrentPage} onSelectContact={setSelectedContactId} /> }),
     ...(can('contacts') && isEnabled('contacts') && { contacts: <ContactsGrid selectedContact={selectedContact} onSelectContact={setSelectedContactId} /> }),
-    ...(can('opportunities') && isEnabled('pipeline') && { pipeline: <Pipeline onSelectContact={setSelectedContactId} /> }),
     ...(can('billing') && isEnabled('billing') && { billing: <Billing pendingDoc={pendingBillingDoc} onPendingDocConsumed={() => setPendingBillingDoc(null)} /> }),
     ...(can('billing') && isEnabled('billing') && { accounting: <Accounting /> }),
     ...(can('messaging') && isEnabled('messaging') && { messaging: <Messaging /> }),

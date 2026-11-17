@@ -42,7 +42,6 @@ export default function Login({ onGoToRegister, onGoToForgot }) {
         <div className="space-y-4">
           {[
             { label: 'Contacts centralises', desc: 'Tous vos contacts en un seul endroit.' },
-            { label: 'Pipeline visuel', desc: 'Suivez vos opportunites etape par etape.' },
             { label: 'Taches & Rappels', desc: 'Ne manquez jamais une relance importante.' },
           ].map(item => (
             <div key={item.label} className="flex items-start gap-3">

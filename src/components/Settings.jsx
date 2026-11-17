@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Zap, Receipt, Send, Kanban, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle, Upload, Trash2, CreditCard } from 'lucide-react';
+import { Save, Zap, Receipt, Send, CalendarDays, BarChart3, Key, Users, Lock, Phone, Loader2, CheckCircle, Upload, Trash2, CreditCard } from 'lucide-react';
 import { api } from '../api.js';
 
 const BASE = '/api';
@@ -15,7 +15,6 @@ async function apiFetch(method, path, body) {
 
 const MODULES = [
   { key: 'contacts',    label: 'Contacts',           desc: 'Gestion de la base de contacts clients',         icon: Users,       required: true },
-  { key: 'pipeline',    label: 'Pipeline',            desc: 'Suivi des opportunités commerciales',             icon: Kanban },
   { key: 'billing',     label: 'Facturation',         desc: 'Devis, factures, catalogue produits',             icon: Receipt },
   { key: 'messaging',   label: 'Messagerie',          desc: 'Envoi email & WhatsApp, modèles de messages',     icon: Send },
   { key: 'planning',    label: 'Planning',            desc: 'Calendrier des rendez-vous hebdomadaire',         icon: CalendarDays },

@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../App.jsx';
 import Softphone from './Softphone.jsx';
 import {
-  LayoutDashboard, Users, Kanban, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, PhoneCall, TrendingUp,
+  LayoutDashboard, Users, BarChart3, Key, LogOut, Menu, X, Send, Receipt, UserCog, CalendarDays, Zap, Settings, PhoneCall, TrendingUp,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Tableau de bord',  icon: LayoutDashboard, perm: 'dashboard' },
   { id: 'contacts',    label: 'Contacts',          icon: Users,           perm: 'contacts' },
-  { id: 'pipeline',    label: 'Pipeline',          icon: Kanban,          perm: 'opportunities',      moduleKey: 'pipeline' },
   { id: 'billing',     label: 'Facturation',       icon: Receipt,         perm: 'billing',            moduleKey: 'billing' },
   { id: 'accounting',  label: 'Comptabilité',      icon: TrendingUp,      perm: 'billing',            moduleKey: 'billing' },
   { id: 'messaging',   label: 'Messagerie',        icon: Send,            perm: 'messaging',          moduleKey: 'messaging' },
