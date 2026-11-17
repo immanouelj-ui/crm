@@ -133,7 +133,7 @@ export default function App() {
     ...(can('dashboard') && { dashboard: <Dashboard onNavigate={setCurrentPage} onSelectContact={setSelectedContactId} /> }),
     ...(can('contacts') && isEnabled('contacts') && { contacts: <ContactsGrid selectedContact={selectedContact} onSelectContact={setSelectedContactId} /> }),
     ...(can('billing') && isEnabled('billing') && { billing: <Billing pendingDoc={pendingBillingDoc} onPendingDocConsumed={() => setPendingBillingDoc(null)} /> }),
-    ...(can('billing') && isEnabled('billing') && { accounting: <Accounting /> }),
+    ...(can('billing') && isEnabled('billing') && { accounting: <Accounting onNavigate={setCurrentPage} /> }),
     ...(can('messaging') && isEnabled('messaging') && { messaging: <Messaging /> }),
     ...(can('contacts') && { campaigns: <Campaigns /> }),
     ...((isAdmin || (perms.appointments_level && perms.appointments_level !== 'none')) && isEnabled('planning') && { planning: <Planning /> }),

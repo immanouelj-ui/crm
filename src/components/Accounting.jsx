@@ -1,428 +1,255 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Papa from 'papaparse';
 import {
-  TrendingUp, TrendingDown, Clock, AlertCircle, CreditCard, Wallet,
-  BarChart3, RefreshCw, Calendar, Settings, X, ChevronRight, Download,
-  DollarSign, CheckCircle, Eye, Landmark
+  AlertCircle, ArrowUpRight, CheckCircle, Clock, Download,
+  ExternalLink, FileText, Landmark, RefreshCw, Search, TrendingUp,
 } from 'lucide-react';
+import {
+  accountingSummary, cents, inPeriod, invoiceDay, invoiceStatus, monthlyBilling,
+  money, outstanding, overdue, todayParis,
+} from '../lib/accounting.js';
 
-const BASE = '/api';
-function tok() { return localStorage.getItem('crm_token'); }
-async function apiFetch(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` } };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const r = await fetch(`${BASE}${path}`, opts);
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-  return d;
+const PERIODS = { month: 'Ce mois', quarter: 'Ce trimestre', year: 'Cette année', all: 'Toutes les dates' };
+const FILTERS = { all: 'Toutes', unpaid: 'À recevoir', overdue: 'En retard', paid: 'Réglées' };
+
+function formatDate(value) {
+  const day = invoiceDay(value);
+  return day ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC' }).format(new Date(day + 'T12:00:00Z')) : '—';
 }
 
-const fmt = n => (n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-const fmtDate = s => s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+async function readAPI(path, signal) {
+  const response = await fetch('/api' + path, {
+    headers: { Authorization: 'Bearer ' + localStorage.getItem('crm_token') }, signal,
+  });
+  if (response.status === 401) throw new Error('Ta session a expiré. Reconnecte-toi au CRM.');
+  if (response.status === 404) throw new Error('Connexion indisponible sur le backend actuel.');
+  const result = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(result?.error || 'Impossible de charger les données.');
+  return result;
+}
 
-// ── Main Component ────────────────────────────────────────────────────────────
-
-export default function Accounting() {
-  const [data, setData] = useState(null);
-  const [unpaidInvoices, setUnpaidInvoices] = useState([]);
-  const [paidInvoices, setPaidInvoices] = useState([]);
+export default function Accounting({ onNavigate }) {
+  const [invoices, setInvoices] = useState([]);
   const [period, setPeriod] = useState('month');
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stripeConnected, setStripeConnected] = useState(false);
-  const [contoConnected, setQuontoConnected] = useState(false);
-  const [contoSetupModal, setQuontoSetupModal] = useState(false);
-  const [contoForm, setQuontoForm] = useState({ clientId: '', clientSecret: '' });
-  const [contoLoading, setQuontoLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState('');
+  const [qonto, setQonto] = useState({ state: 'loading', message: '' });
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const request = useRef(null);
+  const today = todayParis();
 
-  const fetchDashboard = useCallback(async () => {
+  const refresh = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
-    setError(null);
-    try {
-      const d = await apiFetch('GET', `/accounting/dashboard?period=${period}`);
-      setData(d);
-      setStripeConnected(d.stripe?.connected || false);
-
-      const unpaid = await apiFetch('GET', '/accounting/invoices/unpaid');
-      setUnpaidInvoices(unpaid);
-
-      const paid = await apiFetch('GET', `/accounting/invoices/paid?period=${period}`);
-      setPaidInvoices(paid);
-
-      const contoStatus = await apiFetch('GET', '/accounting/quonto/status');
-      setQuontoConnected(contoStatus.connected);
-    } catch (e) {
-      setError(e.message);
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [period]);
+    setError('');
+    setQonto({ state: 'loading', message: '' });
+    const bankRequest = readAPI('/qonto/status', controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      setQonto(result?.connected
+        ? { state: 'connected', message: '' }
+        : { state: 'error', message: 'Connexion Qonto à vérifier.' });
+    }).catch(error => {
+      if (!controller.signal.aborted) setQonto({ state: 'error', message: error.message });
+    });
+    const invoiceRequest = readAPI('/invoices', controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(result)) throw new Error('La liste des factures est indisponible.');
+      setInvoices(result.filter(invoice => invoice.type === 'invoice'));
+      setHasLoaded(true);
+      setUpdatedAt(new Date());
+    }).catch(error => {
+      if (!controller.signal.aborted) setError(error.message);
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    await Promise.allSettled([invoiceRequest, bankRequest]);
+  }, []);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    refresh();
+    return () => request.current?.abort();
+  }, [refresh]);
 
-  const handleQuontoConnect = async () => {
-    setQuontoLoading(true);
-    try {
-      await apiFetch('POST', '/accounting/quonto/connect', contoForm);
-      setQuontoConnected(true);
-      setQuontoSetupModal(false);
-      setQuontoForm({ clientId: '', clientSecret: '' });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setQuontoLoading(false);
+  const summary = useMemo(() => accountingSummary(invoices, period, today), [invoices, period, today]);
+  const trend = useMemo(() => monthlyBilling(invoices, today), [invoices, today]);
+  const max = Math.max(...trend.map(month => month.amount), 1);
+  const filtered = useMemo(() => invoices.filter(invoice => {
+    if (!inPeriod(invoice, period, today)) return false;
+    if (filter === 'unpaid' && outstanding(invoice) <= 0) return false;
+    if (filter === 'overdue' && !overdue(invoice, today)) return false;
+    if (filter === 'paid' && invoice.status !== 'paid') return false;
+    const query = search.trim().toLocaleLowerCase('fr');
+    return !query || [invoice.number, invoice.client_name].some(value => String(value || '').toLocaleLowerCase('fr').includes(query));
+  }).sort((a, b) => {
+    if (filter === 'unpaid' || filter === 'overdue') {
+      return (invoiceDay(a.due_date) || '9999').localeCompare(invoiceDay(b.due_date) || '9999');
     }
-  };
+    return (invoiceDay(b.issue_date) || invoiceDay(b.created_at)).localeCompare(invoiceDay(a.issue_date) || invoiceDay(a.created_at));
+  }), [invoices, period, today, filter, search]);
 
-  const handleQuontoDisconnect = async () => {
-    try {
-      await apiFetch('DELETE', '/accounting/quonto/disconnect');
-      setQuontoConnected(false);
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const handleSyncStripe = async () => {
-    try {
-      const result = await apiFetch('POST', '/accounting/sync/stripe', {});
-      setError(null);
-      alert(`✅ ${result.message}`);
-      fetchDashboard();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  if (loading && !data) {
-    return <div className="p-6 text-center text-slate-500">Chargement du tableau de bord comptable...</div>;
+  function showInvoices(nextFilter, allDates = false) {
+    setFilter(nextFilter);
+    setSearch('');
+    if (allDates) setPeriod('all');
+    document.getElementById('accounting-invoices')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function exportInvoices() {
+    const csv = Papa.unparse({
+      fields: ['Facture', 'Client', 'Date de facture', 'Échéance', 'Statut', 'Montant HT', 'TVA facturée', 'Montant TTC', 'Solde à recevoir'],
+      data: filtered.map(invoice => [
+        invoice.number, invoice.client_name, invoiceDay(invoice.issue_date),
+        invoiceDay(invoice.due_date), invoiceStatus(invoice, today).label,
+        Number(invoice.total_ht || 0).toFixed(2), Number(invoice.total_tva || 0).toFixed(2),
+        Number(invoice.total_ttc || 0).toFixed(2), (outstanding(invoice) / 100).toFixed(2),
+      ]),
+    }, { delimiter: ';', escapeFormulae: true });
+    const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'suivi-factures-' + today + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  const stats = [
+    { label: 'Facturé TTC', value: summary.billed, icon: TrendingUp, subtitle: PERIODS[period], action: () => showInvoices('all') },
+    { label: 'Factures réglées TTC', value: summary.settled, icon: CheckCircle, subtitle: 'Factures émises sur la période', action: () => showInvoices('paid') },
+    { label: 'À recevoir TTC', value: summary.outstanding, icon: Clock, subtitle: 'Toutes les dates · soldes enregistrés', action: () => showInvoices('unpaid', true) },
+    { label: 'En retard TTC', value: summary.overdue, icon: AlertCircle, subtitle: summary.overdueCount + ' facture(s) · toutes les dates', action: () => showInvoices('overdue', true) },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <BarChart3 className="w-8 h-8 text-indigo-600" />
-          Comptabilité & Trésorerie
-        </h1>
-        <p className="text-slate-600 mt-2">Vue temps réel de votre activité financière</p>
+    <div className="mx-auto max-w-7xl space-y-5 p-4 pb-12 md:p-7">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Comptabilité</h1>
+          <p className="mt-1 text-sm text-slate-500">Suivi des factures clients du CRM</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {onNavigate && <button onClick={() => onNavigate('billing')} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-indigo-700"><FileText className="h-4 w-4" /> Gérer les factures</button>}
+          <button onClick={refresh} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 disabled:opacity-50"><RefreshCw className={'h-4 w-4 ' + (loading ? 'animate-spin' : '')} /> Actualiser</button>
+        </div>
+      </header>
+
+      {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>{error}{hasLoaded && ' Les données affichées proviennent du dernier chargement réussi.'}</p></div>}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          Période d’émission
+          <select value={period} onChange={event => setPeriod(event.target.value)} className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800">
+            {Object.entries(PERIODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        {updatedAt && <p className="text-xs text-slate-400">Actualisé à {updatedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
       </div>
 
-      {/* Error banner */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700">
-          <AlertCircle className="w-5 h-5" />
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
-            <X className="w-4 h-4" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map(({ label, value, icon: Icon, subtitle, action }) => (
+          <button key={label} onClick={action} disabled={!hasLoaded} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 disabled:cursor-wait">
+            <span className="flex items-center justify-between gap-2 text-sm text-slate-600">{label}<Icon className={'h-4 w-4 ' + (label === 'En retard TTC' && value > 0 ? 'text-rose-500' : 'text-indigo-500')} /></span>
+            <span className="mt-3 block break-words text-2xl font-semibold tracking-tight text-slate-900">{hasLoaded ? money(value) : '—'}</span>
+            <span className="mt-2 block text-xs text-slate-500">{subtitle}</span>
           </button>
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="mb-6 flex items-center gap-4 flex-wrap">
-        <div className="flex gap-2">
-          {['today', 'week', 'month', 'quarter', 'year'].map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                period === p
-                  ? 'bg-indigo-600 text-white shadow-lg'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:border-indigo-300'
-              }`}
-            >
-              {p === 'today' ? '📅 Aujourd\'hui' : p === 'week' ? '📆 Cette semaine' : p === 'month' ? '📊 Ce mois' : p === 'quarter' ? '📈 Ce trimestre' : '📉 Cette année'}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={fetchDashboard}
-          className="ml-auto px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" /> Actualiser
-        </button>
+        ))}
       </div>
 
-      {/* KPI Cards */}
-      {data && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {/* Revenue TTC */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-slate-600 font-medium">CA TTC</span>
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-              </div>
-              <p className="text-3xl font-bold text-slate-900">{fmt(data.revenue.ttc)}</p>
-              <p className="text-sm text-slate-500 mt-2">Chiffre d'affaires encaissé</p>
-            </div>
+      {hasLoaded && <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+        <span>Facturé HT <strong className="ml-1 font-medium text-slate-900">{money(summary.ht)}</strong></span>
+        <span>TVA des factures émises <strong className="ml-1 font-medium text-slate-900">{money(summary.vat)}</strong></span>
+      </div>}
 
-            {/* Revenue HT */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-slate-600 font-medium">CA HT</span>
-                <DollarSign className="w-5 h-5 text-blue-600" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-5 lg:col-span-2">
+          <h2 className="font-semibold text-slate-900">Facturation des six derniers mois</h2>
+          <p className="mt-1 text-xs text-slate-500">Montants TTC par date d’émission</p>
+          <div className="mt-5 flex h-44 items-end gap-3" aria-label="Montants facturés par mois">
+            {trend.map(month => <div key={month.key} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2">
+              <div className="relative min-h-0 flex-1">
+                <div tabIndex={0} title={month.label + ' · ' + money(month.amount)} aria-label={month.label + ' : ' + (hasLoaded ? money(month.amount) : 'chargement')} className="absolute inset-x-0 bottom-0 min-h-px rounded-t-md bg-indigo-500 transition-all focus:outline focus:outline-offset-2 focus:outline-indigo-700" style={{ height: (hasLoaded ? Math.max(0, month.amount) / max * 100 : 0) + '%' }} />
               </div>
-              <p className="text-3xl font-bold text-slate-900">{fmt(data.revenue.ht)}</p>
-              <p className="text-sm text-slate-500 mt-2">Avant TVA</p>
-            </div>
-
-            {/* VAT */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-slate-600 font-medium">TVA Collectée</span>
-                <CreditCard className="w-5 h-5 text-purple-600" />
-              </div>
-              <p className="text-3xl font-bold text-slate-900">{fmt(data.revenue.vat)}</p>
-              <p className="text-sm text-slate-500 mt-2">À déclarer/reverser</p>
-            </div>
-
-            {/* Unpaid */}
-            <div className={`rounded-xl shadow-sm p-6 border ${data.unpaid.overdue > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className={`font-medium ${data.unpaid.overdue > 0 ? 'text-red-700' : 'text-slate-600'}`}>Factures Impayées</span>
-                <AlertCircle className={`w-5 h-5 ${data.unpaid.overdue > 0 ? 'text-red-600' : 'text-amber-600'}`} />
-              </div>
-              <p className={`text-3xl font-bold ${data.unpaid.overdue > 0 ? 'text-red-900' : 'text-slate-900'}`}>{fmt(data.unpaid.total)}</p>
-              <p className={`text-sm mt-2 ${data.unpaid.overdue > 0 ? 'text-red-600' : 'text-slate-500'}`}>
-                {data.unpaid.overdueCount} en retard ({fmt(data.unpaid.overdue)})
-              </p>
-            </div>
+              <span className="truncate text-center text-xs text-slate-500">{month.label}</span>
+            </div>)}
           </div>
-
-          {/* Stripe Section */}
-          {stripeConnected && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Stripe Balance */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm p-6 border border-purple-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-purple-600" />
-                    Solde Stripe
-                  </h3>
-                  <button
-                    onClick={handleSyncStripe}
-                    className="px-3 py-1 rounded-lg bg-white text-purple-600 font-medium hover:bg-purple-50 text-sm flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Sync
-                  </button>
-                </div>
-                {data.stripe?.balance ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-slate-600">Disponible</p>
-                        <p className="text-2xl font-bold text-emerald-600">{fmt(data.stripe.balance.available)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-600">En attente</p>
-                        <p className="text-2xl font-bold text-amber-600">{fmt(data.stripe.balance.pending)}</p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-slate-600">Impossible de récupérer le solde</p>
-                )}
-              </div>
-
-              {/* Recent Stripe Transactions */}
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-indigo-600" />
-                  Dernières transactions Stripe
-                </h3>
-                {data.stripe?.recentTransactions && data.stripe.recentTransactions.length > 0 ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {data.stripe.recentTransactions.map(tx => (
-                      <div key={tx.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">{tx.description}</p>
-                          <p className="text-xs text-slate-500">{fmtDate(tx.created)}</p>
-                        </div>
-                        <p className="text-sm font-bold text-emerald-600 flex-shrink-0 ml-2">{fmt(tx.amount)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-600">Aucune transaction récente</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Revenue Trend */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200 mb-8">
-            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-indigo-600" />
-              Tendance CA (12 derniers mois)
-            </h3>
-            <div className="grid grid-cols-12 gap-1 h-48 items-end">
-              {data.revenue.monthlyTrend.map((m, i) => {
-                const maxRevenue = Math.max(...data.revenue.monthlyTrend.map(x => x.revenue), 1);
-                const height = (m.revenue / maxRevenue) * 100;
-                return (
-                  <div key={i} className="flex flex-col items-center justify-end gap-1">
-                    <div
-                      className="w-full bg-gradient-to-t from-indigo-500 to-indigo-300 rounded-t-md hover:from-indigo-600 hover:to-indigo-400 transition-all cursor-pointer"
-                      style={{ height: `${height}%` }}
-                      title={`${m.month}: ${fmt(m.revenue)}`}
-                    />
-                    <span className="text-xs text-slate-500 text-center whitespace-nowrap">{m.month}</span>
-                  </div>
-                );
-              })}
-            </div>
+        </section>
+        <section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 md:p-5">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Landmark className="h-4 w-4 text-indigo-500" /> Qonto</h2>
+            <p className="mt-3 text-sm text-slate-700">{qonto.state === 'loading' ? 'Vérification de la connexion…' : qonto.state === 'connected' ? 'Connexion active pour l’envoi des clients.' : qonto.message}</p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">Les indicateurs de cet écran sont calculés à partir des factures enregistrées dans le CRM.</p>
           </div>
+          <a href="https://app.qonto.com" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-indigo-600">Ouvrir Qonto <ExternalLink className="h-4 w-4" /></a>
+        </section>
+      </div>
 
-          {/* Unpaid Invoices */}
-          {unpaidInvoices.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200 mb-8">
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-600" />
-                Factures Impayées ({unpaidInvoices.length})
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
-                    <tr>
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">Facture</th>
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">Client</th>
-                      <th className="text-right py-2 px-3 text-slate-600 font-semibold">Montant</th>
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">Échéance</th>
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {unpaidInvoices.map(inv => (
-                      <tr key={inv.id} className={`border-b border-slate-100 hover:bg-slate-50 ${inv.isOverdue ? 'bg-red-50' : ''}`}>
-                        <td className="py-3 px-3 font-mono text-indigo-600">{inv.number}</td>
-                        <td className="py-3 px-3 text-slate-700">{inv.client_name}</td>
-                        <td className="py-3 px-3 text-right font-semibold text-slate-900">{fmt(inv.total_ttc)}</td>
-                        <td className="py-3 px-3 text-slate-600">{fmtDate(inv.due_date)}</td>
-                        <td className="py-3 px-3">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            inv.isOverdue
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {inv.isOverdue ? `⚠️ ${inv.daysOverdue}j en retard` : `📅 À recevoir`}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Quonto Integration */}
-          <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-sm p-6 border border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Landmark className="w-5 h-5 text-blue-600" />
-                  Intégration Quonto
-                </h3>
-                <p className="text-slate-600 mt-1">
-                  Synchronisez vos transactions bancaires pour une vue complète de votre trésorerie
-                </p>
-              </div>
-              <div>
-                {contoConnected ? (
-                  <button
-                    onClick={handleQuontoDisconnect}
-                    className="px-4 py-2 rounded-lg bg-red-50 text-red-600 border border-red-200 font-medium hover:bg-red-100"
-                  >
-                    ❌ Déconnecter Quonto
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setQuontoSetupModal(true)}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
-                  >
-                    🔗 Connecter Quonto
-                  </button>
-                )}
-              </div>
-            </div>
-            {contoConnected && (
-              <p className="mt-4 text-sm text-emerald-600 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Connecté - Vos transactions Quonto sont synchronisées
-              </p>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Quonto Setup Modal */}
-      {contoSetupModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <Landmark className="w-5 h-5 text-blue-600" />
-                Connecter Quonto
-              </h2>
-              <button
-                onClick={() => setQuontoSetupModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Client ID</label>
-                <input
-                  type="text"
-                  value={contoForm.clientId}
-                  onChange={e => setQuontoForm({ ...contoForm, clientId: e.target.value })}
-                  placeholder="Votre Client ID Quonto"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Client Secret</label>
-                <input
-                  type="password"
-                  value={contoForm.clientSecret}
-                  onChange={e => setQuontoForm({ ...contoForm, clientSecret: e.target.value })}
-                  placeholder="Votre Client Secret Quonto"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <p className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg">
-                💡 Vous trouverez vos identifiants Quonto dans votre tableau de bord à l'adresse <a href="https://quonto.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">quonto.com</a>
-              </p>
-            </div>
-
-            <div className="flex gap-3 p-6 border-t border-slate-200">
-              <button
-                onClick={() => setQuontoSetupModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleQuontoConnect}
-                disabled={contoLoading || !contoForm.clientId || !contoForm.clientSecret}
-                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {contoLoading ? 'Connexion...' : 'Connecter'}
-              </button>
-            </div>
-          </div>
+      <section id="accounting-invoices" className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <h2 className="font-semibold text-slate-900">Factures <span className="ml-1 text-sm font-normal text-slate-400">{filtered.length}</span></h2>
+          <button type="button" onClick={exportInvoices} disabled={!hasLoaded || filtered.length === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 disabled:opacity-40"><Download className="h-4 w-4" /> Exporter ce résultat</button>
         </div>
-      )}
+        <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
+          <label className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <input aria-label="Rechercher une facture ou un client" value={search} onChange={event => setSearch(event.target.value)} placeholder="Facture ou client…" className="h-10 w-full min-w-40 rounded-lg border border-slate-200 pl-9 pr-3 text-sm" />
+          </label>
+          <select aria-label="Statut des factures" value={filter} onChange={event => setFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">{Object.entries(FILTERS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        </div>
+        {loading && !hasLoaded ? <p role="status" className="p-8 text-center text-sm text-slate-500">Chargement des factures…</p> : !hasLoaded ? <p className="p-8 text-center text-sm text-slate-500">Les factures n’ont pas pu être chargées. Clique sur Actualiser pour réessayer.</p> : filtered.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">Aucune facture pour ces critères.</p> : (
+          <>
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filtered.map(invoice => {
+              const status = invoiceStatus(invoice, today);
+              return (
+                <article key={invoice.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-slate-900">{invoice.number || 'Sans numéro'}</h3>
+                      <p className="mt-1 break-words text-sm text-slate-500">{invoice.client_name || 'Client non renseigné'}</p>
+                    </div>
+                    <span className={'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ' + status.color}>{status.label}</span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    <div><dt className="text-xs text-slate-400">Montant TTC</dt><dd className="mt-1 font-semibold text-slate-900">{money(cents(invoice.total_ttc))}</dd></div>
+                    <div><dt className="text-xs text-slate-400">À recevoir</dt><dd className="mt-1 font-medium text-slate-700">{money(outstanding(invoice))}</dd></div>
+                    <div><dt className="text-xs text-slate-400">Émission</dt><dd className="mt-1 text-slate-600">{formatDate(invoice.issue_date)}</dd></div>
+                    <div><dt className="text-xs text-slate-400">Échéance</dt><dd className={'mt-1 ' + (overdue(invoice, today) ? 'font-medium text-rose-600' : 'text-slate-600')}>{formatDate(invoice.due_date)}</dd></div>
+                  </dl>
+                  <a href={'/api/invoices/' + invoice.id + '/pdf?token=' + encodeURIComponent(localStorage.getItem('crm_token') || '')} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-indigo-600"><FileText className="h-4 w-4" /> Voir le PDF</a>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[660px] text-sm">
+              <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <tr>{['Facture / client', 'Émission', 'Échéance', 'TTC', 'À recevoir', 'Statut', 'PDF'].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(invoice => {
+                  const status = invoiceStatus(invoice, today);
+                  return <tr key={invoice.id} className="hover:bg-slate-50">
+                    <td className="max-w-60 px-4 py-3"><p className="font-medium text-slate-900">{invoice.number || 'Sans numéro'}</p><p className="mt-0.5 truncate text-xs text-slate-500">{invoice.client_name || 'Client non renseigné'}</p></td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(invoice.issue_date)}</td>
+                    <td className={'whitespace-nowrap px-4 py-3 ' + (overdue(invoice, today) ? 'font-medium text-rose-600' : 'text-slate-600')}>{formatDate(invoice.due_date)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">{money(cents(invoice.total_ttc))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{money(outstanding(invoice))}</td>
+                    <td className="px-4 py-3"><span className={'inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ' + status.color}>{status.label}</span></td>
+                    <td className="px-4 py-3"><a href={'/api/invoices/' + invoice.id + '/pdf?token=' + encodeURIComponent(localStorage.getItem('crm_token') || '')} target="_blank" rel="noopener noreferrer" aria-label={'Ouvrir le PDF de ' + invoice.number} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50"><ArrowUpRight className="h-4 w-4" /></a></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
