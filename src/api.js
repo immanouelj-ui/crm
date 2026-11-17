@@ -1,3 +1,5 @@
+import Papa from 'papaparse';
+
 const BASE = '/api';
 
 function getToken() {
@@ -27,6 +29,17 @@ async function request(method, path, body) {
   return data;
 }
 
+function downloadContactsCSV(blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'contacts.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
   // Auth
   login: (email, password) => request('POST', '/auth/login', { email, password }),
@@ -46,20 +59,23 @@ export const api = {
   createContact: (data) => request('POST', '/contacts', data),
   updateContact: (id, data) => request('PUT', `/contacts/${id}`, data),
   deleteContact: (id) => request('DELETE', `/contacts/${id}`),
-  exportCSV: () => {
-    const url = `${BASE}/contacts/export/csv`;
-    fetch(url, { headers: headers() })
-      .then(r => r.blob())
-      .then(blob => {
-        const a = document.createElement('a');
-        const blobUrl = URL.createObjectURL(blob);
-        a.href = blobUrl;
-        a.setAttribute('download', 'contacts.csv');
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      });
+  exportCSV: async () => {
+    const response = await fetch(`${BASE}/contacts/export/csv`, { headers: headers() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    downloadContactsCSV(await response.blob());
+  },
+  exportSelectedCSV: (contacts, fields, selectedIds) => {
+    const selected = contacts.filter(contact => selectedIds.has(contact.id));
+    if (!selected.length) return;
+    const csv = Papa.unparse({
+      fields: ['id', 'created_at', ...fields.map(field => field.label)],
+      data: selected.map(contact => [
+        contact.id,
+        contact.created_at,
+        ...fields.map(field => contact.custom_data?.[field.name] ?? ''),
+      ]),
+    }, { escapeFormulae: true });
+    downloadContactsCSV(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   },
   importCSV: (csvText) => {
     return fetch(`${BASE}/contacts/import/csv`, {

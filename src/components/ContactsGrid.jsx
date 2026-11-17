@@ -680,6 +680,18 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
     setSelectedRows(prev => { const next = new Set(prev); next.delete(contactId); return next; });
   }
 
+  async function exportContacts() {
+    if (selectedRows.size) {
+      api.exportSelectedCSV(contacts, fields, selectedRows);
+      return;
+    }
+    try {
+      await api.exportCSV();
+    } catch {
+      window.alert("Impossible d’exporter les contacts. Réessaie dans un instant.");
+    }
+  }
+
   async function deleteSelected() {
     if (!window.confirm(`Supprimer ${selectedRows.size} contact(s) ?`)) return;
     await Promise.all([...selectedRows].map(id => api.deleteContact(id)));
@@ -1092,11 +1104,11 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           </button>
 
           <button
-            onClick={api.exportCSV}
+            onClick={exportContacts}
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
           >
             <Download className="w-3.5 h-3.5" />
-            Exporter
+            {selectedRows.size ? 'Exporter la sélection' : 'Exporter'}
           </button>
 
           <button
@@ -1301,7 +1313,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
             Supprimer
           </button>
           <button
-            onClick={api.exportCSV}
+            onClick={exportContacts}
             className="text-sm text-slate-300 hover:text-white transition-colors"
           >
             Exporter
