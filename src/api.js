@@ -29,6 +29,55 @@ async function request(method, path, body) {
   return data;
 }
 
+const CONTACT_EXPORT_COLUMNS = [
+  ['Type de client', 'type_client', 'client_type', 'customer_type'],
+  ['Nom de l’entreprise', 'entreprise', 'company', 'company_name', 'raison_sociale', 'societe'],
+  ['Prénom', 'first_name', 'firstname'],
+  ['Nom', 'nom_de_famille', 'last_name', 'lastname', 'name'],
+  ['Adresse e-mail', 'email', 'e_mail', 'adresse_email', 'courriel'],
+  ['Adresse de facturation', 'adresse_facturation', 'billing_address', 'adresse', 'address', 'adresse_postale'],
+  ['Code postal de facturation', 'cp_facturation', 'code_postal_facturation', 'billing_postal_code', 'billing_zip', 'cp', 'code_postal', 'codepostal', 'postal_code', 'zip'],
+  ['Ville de facturation', 'ville_facturation', 'billing_city', 'ville', 'city', 'commune'],
+  ['Province de facturation', 'province_facturation', 'region_facturation', 'billing_province', 'billing_state', 'province', 'region'],
+  ['Pays de facturation', 'pays_facturation', 'billing_country', 'pays', 'country'],
+  ['Adresse de livraison', 'adresse_livraison', 'shipping_address', 'delivery_address'],
+  ['Code postal de livraison', 'cp_livraison', 'code_postal_livraison', 'shipping_postal_code', 'shipping_zip', 'delivery_postal_code'],
+  ['Ville de livraison', 'ville_livraison', 'shipping_city', 'delivery_city'],
+  ['Province de livraison', 'province_livraison', 'region_livraison', 'shipping_province', 'shipping_state', 'delivery_province'],
+  ['Pays de livraison', 'pays_livraison', 'shipping_country', 'delivery_country'],
+  ['SIREN/SIRET', 'siret', 'siren', 'client_siret'],
+  ['Numéro de TVA', 'tva_number', 'vat_number', 'vat_id', 'tva_intracommunautaire', 'numero_tva', 'n_tva'],
+  ['Langue', 'language', 'lang', 'locale'],
+  ['Devise', 'currency', 'currency_code'],
+];
+
+function normalizeContactField(name) {
+  return String(name ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function contactExportRow(contact, fields) {
+  const data = contact.custom_data ?? {};
+  const values = new Map();
+  for (const [name, value] of Object.entries(data)) {
+    if (typeof value === 'number' || (typeof value === 'string' && value.trim())) {
+      values.set(normalizeContactField(name), value);
+    }
+  }
+  for (const field of fields) {
+    const label = normalizeContactField(field.label);
+    const value = values.get(normalizeContactField(field.name));
+    if (value !== undefined && !values.has(label)) values.set(label, value);
+  }
+  return CONTACT_EXPORT_COLUMNS.map(names => {
+    for (const name of names) {
+      const value = values.get(normalizeContactField(name));
+      if (value !== undefined) return value;
+    }
+    return '';
+  });
+}
+
 function downloadContactsCSV(blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -68,12 +117,8 @@ export const api = {
     const selected = contacts.filter(contact => selectedIds.has(contact.id));
     if (!selected.length) return;
     const csv = Papa.unparse({
-      fields: ['id', 'created_at', ...fields.map(field => field.label)],
-      data: selected.map(contact => [
-        contact.id,
-        contact.created_at,
-        ...fields.map(field => contact.custom_data?.[field.name] ?? ''),
-      ]),
+      fields: CONTACT_EXPORT_COLUMNS.map(([label]) => label),
+      data: selected.map(contact => contactExportRow(contact, fields)),
     }, { escapeFormulae: true });
     downloadContactsCSV(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   },
