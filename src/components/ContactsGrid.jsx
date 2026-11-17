@@ -8,7 +8,7 @@ import {
 import { api } from '../api.js';
 import {
   Plus, Trash2, Download, Upload, Settings2, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone, PhoneCall, CheckCircle,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone, PhoneCall, CheckCircle, Image as ImageIcon, Pencil,
 } from 'lucide-react';
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
@@ -548,6 +548,66 @@ function CellEditor({ value, field, onSave, onCancel }) {
   );
 }
 
+function getPhotoUrls(value) {
+  const entries = Array.isArray(value) ? value : [value];
+  const urls = new Set();
+  for (const entry of entries) {
+    if (typeof entry !== 'string') continue;
+    for (const candidate of entry.split(/[,\s]+(?=https:\/\/)/i)) {
+      try {
+        const url = new URL(candidate.trim());
+        if (url.origin === 'https://2cbbtu0mnx.ucarecd.net' && !url.username && !url.password) {
+          urls.add(url.href);
+        }
+      } catch {
+        // Ignore empty or invalid values.
+      }
+    }
+  }
+  return [...urls];
+}
+
+function PhotoThumbnails({ urls, onEdit }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {urls.map((url, index) => {
+        const label = `Ouvrir la photo ${index + 1} dans un nouvel onglet`;
+        return (
+          <a
+            key={url}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={label}
+            title={label}
+            onClick={event => event.stopPropagation()}
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-100 text-slate-400 hover:border-indigo-500 focus-visible:outline focus-visible:outline-indigo-500"
+          >
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
+            <img
+              src={url}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={event => { event.currentTarget.hidden = true; }}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </a>
+        );
+      })}
+      <button
+        type="button"
+        aria-label="Modifier les photos"
+        title="Modifier les photos"
+        onClick={event => { event.stopPropagation(); onEdit(); }}
+        className="self-center rounded p-1 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function CellDisplay({ value, field }) {
   if (value === null || value === undefined || value === '') {
     return <span className="text-slate-300 text-xs">—</span>;
@@ -730,6 +790,18 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
           }
 
           const val = getValue();
+
+          if ([field.name, field.label].some(key => key?.trim().toLowerCase() === 'photos')) {
+            const urls = getPhotoUrls(val);
+            if (urls.length) {
+              return (
+                <PhotoThumbnails
+                  urls={urls}
+                  onEdit={() => setEditingCell({ rowId: contactId, fieldName: field.name })}
+                />
+              );
+            }
+          }
 
           // Select fields: single click opens editor directly (no navigation)
           if (field.type === 'select') {
