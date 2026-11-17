@@ -4,7 +4,7 @@ import { useAuth } from '../App.jsx';
 import {
   ChevronLeft, Phone, Mail, Building2, Calendar, Clock,
   TrendingUp, CheckSquare, MoreVertical, Trash2, Plus, Check,
-  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays, Smartphone,
+  X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays, Smartphone, Printer,
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
@@ -13,6 +13,7 @@ import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
 import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
 import { Paperclip } from 'lucide-react';
 import { triggerCall } from '../lib/call.js';
+import { openReceptionPrint } from '../lib/receptionPrint.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1006,6 +1007,19 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
                 </GoogleMapsLink>
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!openReceptionPrint(cd)) {
+                  window.alert("Autorise l’ouverture du nouvel onglet pour imprimer le procès-verbal.");
+                }
+              }}
+              className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              Imprimer la fiche d’intervention
+            </button>
 
             {/* Quick stats */}
             <div className="flex items-center gap-6 mt-3 flex-wrap">

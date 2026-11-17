@@ -203,6 +203,7 @@ export const api = {
   getStripeStatus: () => request('GET', '/stripe/status'),
   connectStripe: (secretKey) => request('POST', '/stripe/connect', { secretKey }),
   disconnectStripe: () => request('DELETE', '/stripe/disconnect'),
+  getReceptionCompanyName: async () => (await request('GET', '/invoices/settings'))?.name || '',
   getInvoicePaymentLink: (id) => request('POST', `/invoices/${id}/payment-link`),
   chargeInvoiceBalance: (id) => request('POST', `/invoices/${id}/charge-balance`),
   getTwilioToken: () => request('POST', '/twilio/token'),
