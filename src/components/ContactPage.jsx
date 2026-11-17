@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
 import Attachments from './Attachments.jsx';
+import ContactMap, { getBuildingAddress } from './ContactMap.jsx';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
 import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
 import { Paperclip } from 'lucide-react';
@@ -826,6 +827,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   }
 
   const cd = contact.custom_data || {};
+  const buildingAddress = getBuildingAddress(cd);
   const name = cd.nom || cd.name || `Contact #${contact.id}`;
   const statusBadge = STATUS_BADGE[cd.statut] || STATUS_BADGE[cd.status] || 'bg-slate-100 text-slate-600';
   const statusVal = cd.statut || cd.status;
@@ -1298,6 +1300,8 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           </div>
 
           <div className="border-t border-slate-100 mb-6" />
+
+          {buildingAddress && <ContactMap key={buildingAddress} address={buildingAddress} />}
 
           {/* PIÈCES JOINTES */}
           <div>
