@@ -18,7 +18,10 @@ export default function LeadNotifications() {
     if (!supported || Notification.permission !== 'granted') return;
     let active = true;
     navigator.serviceWorker.getRegistration('/push-sw.js')
-      .then(registration => registration?.pushManager.getSubscription())
+      .then(async registration => {
+        registration?.update().catch(() => {});
+        return registration?.pushManager.getSubscription();
+      })
       .then(async subscription => {
         if (!subscription) return;
         const status = await notificationRequest('/check', { endpoint: subscription.endpoint });
@@ -84,17 +87,17 @@ export default function LeadNotifications() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} title="Notifications des nouveaux leads" aria-label="Notifications des nouveaux leads" className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50">
+      <button type="button" onClick={() => setOpen(true)} title="Notifications du CRM" aria-label="Notifications du CRM" className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50">
         {enabled ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="lead-notification-title" className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
-              <h2 id="lead-notification-title" className="text-lg font-semibold text-slate-900">Alertes de nouveaux leads</h2>
+              <h2 id="lead-notification-title" className="text-lg font-semibold text-slate-900">Alertes du CRM</h2>
               <button type="button" disabled={busy} onClick={() => setOpen(false)} aria-label="Fermer les réglages des notifications" className="p-2 text-slate-400"><X className="h-5 w-5" /></button>
             </div>
-            <p className="mt-3 text-sm text-slate-600">Reçois une notification sur ton téléphone lorsqu’un formulaire crée un nouveau lead. Appuie sur l’alerte pour ouvrir sa fiche.</p>
+            <p className="mt-3 text-sm text-slate-600">Reçois une notification pour les nouveaux leads et les devis acceptés. Appuie sur l’alerte pour ouvrir la fiche ou le devis.</p>
             {ios && !standalone ? (
               <ol className="mt-4 list-inside list-decimal space-y-2 rounded-xl bg-indigo-50 p-4 text-sm text-indigo-900">
                 <li>Dans Safari, appuie sur Partager.</li>

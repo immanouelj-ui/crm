@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Plus, Trash2, Download, FileText, Settings2, ChevronRight, CheckCircle, Clock,
   X, RefreshCw, ArrowRight, Search, FilePlus2, Mail, Package, Send,
-  AlertCircle, ChevronDown, Upload, Palette, Building2, Globe, CreditCard,
+  AlertCircle, Link, Copy, ChevronDown, Upload, Palette, Building2, Globe, CreditCard,
 } from 'lucide-react';
 
 const BASE = '/api';
@@ -12,11 +12,18 @@ async function apiFetch(method, path, body) {
   if (body !== undefined) opts.body = JSON.stringify(body);
   const r = await fetch(`${BASE}${path}`, opts);
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(d.error || (r.status === 404 && path.startsWith('/quote-portal') ? 'Le portail de devis doit encore être installé sur Fly.io.' : `HTTP ${r.status}`));
   return d;
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
+function clientName(data) {
+  const first=String(data.prenom || data.first_name || '').trim();
+  const last=String(data.nom || data.name || data.last_name || '').trim();
+  return first && !last.toLocaleLowerCase('fr').startsWith(first.toLocaleLowerCase('fr') + ' ')
+    && first.toLocaleLowerCase('fr') !== last.toLocaleLowerCase('fr')
+    ? [first,last].filter(Boolean).join(' ') : last;
+}
 const STATUS = {
   draft:     { label: 'Brouillon',  cls: 'bg-slate-100 text-slate-600' },
   sent:      { label: 'Envoyée',    cls: 'bg-blue-100 text-blue-700' },
@@ -110,10 +117,10 @@ function ProductPicker({ onSelect, onClose }) {
 }
 
 // ── Send email modal ──────────────────────────────────────────────────────────
-function SendEmailModal({ invoice, contactEmail, onClose, onSent }) {
+function SendEmailModal({ invoice, contactEmail, onClose, onSent, portalUrl }) {
   const [to, setTo] = useState(contactEmail || '');
   const [subject, setSubject] = useState(`${invoice.type === 'quote' ? 'Devis' : 'Facture'} ${invoice.number}`);
-  const [body, setBody] = useState(`Bonjour,\n\nVeuillez trouver ci-joint votre ${invoice.type === 'quote' ? 'devis' : 'facture'} ${invoice.number}.\n\nCordialement`);
+  const [body, setBody] = useState(`Bonjour,\n\nVeuillez trouver ci-joint votre ${invoice.type === 'quote' ? 'devis' : 'facture'} ${invoice.number}.${portalUrl ? '\n\nVous pouvez consulter et accepter votre devis ici :\n' + portalUrl : ''}\n\nCordialement`);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
 
@@ -121,7 +128,7 @@ function SendEmailModal({ invoice, contactEmail, onClose, onSent }) {
     if (!to) return setError('Email requis');
     setSending(true); setError(null);
     try {
-      await apiFetch('POST', `/invoices/${invoice.id}/send-email`, { to, subject, body });
+      await apiFetch('POST', invoice.type === 'quote' ? `/quote-portal/${invoice.id}/send-email` : `/invoices/${invoice.id}/send-email`, { to, subject, body });
       onSent();
       onClose();
     } catch (e) { setError(e.message); }
@@ -202,6 +209,33 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
   const [paymentLinkCopied, setPaymentLinkCopied] = useState(false);
   const [chargingBalance, setChargingBalance] = useState(false);
+  const [portalUrl, setPortalUrl] = useState('');
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [portalState, setPortalState] = useState(null);
+  const lockedQuote = isQuote && ['accepted','converted'].includes(invoice?.status);
+
+  useEffect(() => {
+    setForm(previous => ({ ...previous, status: invoice?.status || previous.status }));
+    if (!invoice?.id || invoice.type !== 'quote') return;
+    let active = true;
+    apiFetch('GET', `/quote-portal/${invoice.id}/state`).then(value => { if(active)setPortalState(value); }).catch(() => {});
+    return () => { active=false; };
+  }, [invoice?.id, invoice?.status]);
+
+  async function prepareQuote(email=false) {
+    setPortalBusy(true); setError(null);
+    try {
+      const saved=lockedQuote?invoice:await save();
+      if(!saved)return;
+      const result=await apiFetch('POST',`/quote-portal/${saved.id}/share`);
+      setPortalUrl(result.url);
+      setPortalState(result);
+      onSaved({ ...saved, status: saved.status==='draft'?'sent':saved.status });
+      if(email)setShowSendEmail(true);
+    } catch(failure) { setError(failure.message); }
+    finally { setPortalBusy(false); }
+  }
 
   async function handlePaymentLink() {
     setPaymentLinkLoading(true);
@@ -250,13 +284,13 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
   function selectContact(contact) {
     const d = contact.custom_data || {};
     set('contact_id', contact.id);
-    set('client_name', d.nom || d.name || '');
+    set('client_name', clientName(d));
     set('client_address', d.adresse || '');
-    set('client_zip', d.code_postal || '');
+    set('client_zip', d.cp || d.code_postal || '');
     set('client_city', d.ville || '');
     set('client_siret', d.siret || '');
     set('client_tva', d.tva || '');
-    setContactSearch(d.nom || d.name || '');
+    setContactSearch(clientName(d));
     setShowContactDrop(false);
   }
 
@@ -275,9 +309,11 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
       const result = isNew
         ? await apiFetch('POST', '/invoices', form)
         : await apiFetch('PUT', `/invoices/${invoice.id}`, form);
+      setPortalUrl('');
       onSaved(result);
-    } catch(e) { setError(e.message); }
-    setSaving(false);
+      return result;
+    } catch(e) { setError(e.message); return null; }
+    finally { setSaving(false); }
   }
 
   const filteredContacts = contacts.filter(c => {
@@ -297,10 +333,22 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           {!isNew && (
             <>
-              <button onClick={() => setShowSendEmail(true)}
+              <button disabled={saving || portalBusy} onClick={() => isQuote ? prepareQuote(true) : setShowSendEmail(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 transition-colors">
                 <Mail className="w-4 h-4" /> Envoyer
               </button>
+              {isQuote && invoice.status === 'accepted' && <button type="button" disabled={converting} onClick={async () => {
+                setConverting(true); setError(null);
+                try { onSaved(await apiFetch('POST', `/invoices/${invoice.id}/convert`)); }
+                catch(failure){setError(failure.message);}
+                finally{setConverting(false);}
+              }} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+                <FilePlus2 className="h-4 w-4" /> Créer la facture
+              </button>}
+              {isQuote && <button type="button" disabled={saving || portalBusy} onClick={() => prepareQuote(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 disabled:opacity-50">
+                <Link className="h-4 w-4" /> Lien d’acceptation
+              </button>}
               <a href={`${BASE}/invoices/${invoice.id}/pdf?token=${tok()}`} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600">
                 <Download className="w-4 h-4" /> PDF
@@ -325,7 +373,7 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
               )}
             </>
           )}
-          <button onClick={save} disabled={saving}
+          <button onClick={save} disabled={saving || portalBusy || lockedQuote}
             className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium">
             {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
             Enregistrer
@@ -335,6 +383,15 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
 
       {error && <div className="mx-6 mt-2 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
 
+      {portalState?.accepted_at && <div className="mx-4 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+        Accepté en ligne par {portalState.accepted_by} le {new Date(portalState.accepted_at).toLocaleString('fr-FR',{timeZone:'Europe/Paris'})}.
+      </div>}
+      {portalUrl && <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+        <input readOnly value={portalUrl} aria-label="Lien privé du devis client" onFocus={event=>event.target.select()} className="min-w-0 flex-1 rounded border border-indigo-100 bg-white px-3 py-2 text-sm" />
+        <button type="button" onClick={() => navigator.clipboard.writeText(portalUrl).catch(() => setError('Sélectionne le lien pour le copier.'))} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-indigo-600 px-3 text-sm text-white"><Copy className="h-4 w-4" />Copier</button>
+        <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-sm font-medium text-indigo-700">Voir le devis client</a>
+      </div>}
+
       {invoice.payment_plan === 'deposit' && invoice.balance_due > 0 && (
         <div className="mx-6 mt-2 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <CreditCard className="w-4 h-4 flex-shrink-0" />
@@ -343,10 +400,10 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
       )}
 
       <div className="flex-1 overflow-auto px-6 py-4">
-        <div className="max-w-4xl mx-auto space-y-4">
+        <fieldset disabled={lockedQuote} className="max-w-4xl mx-auto space-y-4">
 
           {/* Row 1: Type + Status + Dates */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
               <select value={form.type} onChange={e => set('type', e.target.value)} disabled={!isNew}
@@ -542,7 +599,7 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
               placeholder="Conditions de paiement, délais particuliers…"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
           </div>
-        </div>
+        </fieldset>
       </div>
 
       {showProductPicker !== null && (
@@ -554,9 +611,10 @@ function InvoiceEditor({ invoice, onSaved, onClose, settings, contacts }) {
       {showSendEmail && (
         <SendEmailModal
           invoice={invoice}
+          portalUrl={portalUrl}
           contactEmail={contacts.find(c => c.id === form.contact_id)?.custom_data?.email || ''}
           onClose={() => setShowSendEmail(false)}
-          onSent={() => onSaved({ ...invoice, status: 'sent' })}
+          onSent={() => onSaved({ ...invoice, status: ['draft','sent'].includes(invoice.status) ? 'sent' : invoice.status })}
         />
       )}
     </div>
@@ -859,14 +917,21 @@ export default function Billing({ pendingDoc, onPendingDocConsumed }) {
   // Ouvre l'éditeur pré-rempli si un doc est en attente (depuis fiche contact)
   useEffect(() => {
     if (!pendingDoc || loading) return;
+    if (pendingDoc.invoiceId) {
+      let active=true;
+      apiFetch('GET', `/invoices/${pendingDoc.invoiceId}`).then(document => {
+        if(active){setCurrent(document);setView('edit');onPendingDocConsumed?.();}
+      }).catch(failure=>{if(active){alert(failure.message);onPendingDocConsumed?.();}});
+      return()=>{active=false;};
+    }
     const { type, contact } = pendingDoc;
     const d = contact?.custom_data || {};
     setCurrent({
       type,
       contact_id: contact?.id || '',
-      client_name: d.nom || d.name || '',
+      client_name: clientName(d),
       client_address: d.adresse || '',
-      client_zip: d.code_postal || '',
+      client_zip: d.cp || d.code_postal || '',
       client_city: d.ville || '',
       client_siret: d.siret || '',
       client_tva: d.tva || '',
@@ -906,7 +971,7 @@ export default function Billing({ pendingDoc, onPendingDocConsumed }) {
   if (view === 'settings') return <CompanySettings onClose={() => { setView('list'); load(); }} />;
   if (view === 'catalog') return <ProductCatalog onClose={() => setView('list')} />;
   if (view === 'edit') return (
-    <InvoiceEditor invoice={current} settings={settings} contacts={contacts}
+    <InvoiceEditor key={current?.id || 'new-' + current?.type} invoice={current} settings={settings} contacts={contacts}
       onSaved={inv => { onSaved(inv); setCurrent(inv); }}
       onClose={() => { setView('list'); load(); }} />
   );

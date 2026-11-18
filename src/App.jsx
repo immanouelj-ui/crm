@@ -17,6 +17,7 @@ import Planning from './components/Planning.jsx';
 import Automations from './components/Automations.jsx';
 import Settings from './components/Settings.jsx';
 import Campaigns from './components/Campaigns.jsx';
+import PublicQuotePortal from './components/PublicQuotePortal.jsx';
 import { disableLeadNotifications } from './lib/leadNotifications.js';
 
 export const AuthContext = createContext(null);
@@ -42,13 +43,16 @@ export function useAuth() {
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => new URLSearchParams(window.location.search).get('document') ? 'billing' : 'dashboard');
   const [selectedContact, setSelectedContact] = useState(null);
   const [selectedContactId, setSelectedContactId] = useState(() => {
     const id = Number(new URLSearchParams(window.location.search).get('contact'));
     return Number.isSafeInteger(id) && id > 0 ? id : null;
   });
-  const [pendingBillingDoc, setPendingBillingDoc] = useState(null);
+  const [pendingBillingDoc, setPendingBillingDoc] = useState(() => {
+    const id=Number(new URLSearchParams(window.location.search).get('document'));
+    return Number.isSafeInteger(id) && id>0 ? {invoiceId:id} : null;
+  });
   const [enabledModules, setEnabledModules] = useState({});
 
   useEffect(() => {
@@ -87,6 +91,9 @@ export default function App() {
     setCurrentPage('dashboard');
     setSelectedContactId(null);
   }
+
+  const publicQuoteToken=new URLSearchParams(window.location.search).get('quote');
+  if(publicQuoteToken)return <PublicQuotePortal token={publicQuoteToken} />;
 
   if (loading) {
     return (
