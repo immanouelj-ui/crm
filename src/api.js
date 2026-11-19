@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import { appointmentsForWeek } from './lib/calendar.js';
 
 const BASE = '/api';
 
@@ -197,7 +198,7 @@ export const api = {
 
   // Appointments
   getContactAppointments: (contactId) => request('GET', `/appointments/contact/${contactId}`),
-  getAppointments: (weekStart) => request('GET', `/appointments?week_start=${weekStart}`),
+  getAppointments: async (weekStart) => appointmentsForWeek(await request('GET', '/appointments'), weekStart),
   createAppointment: (data) => request('POST', '/appointments', data),
   updateAppointment: (id, data) => request('PUT', `/appointments/${id}`, data),
   deleteAppointment: (id) => request('DELETE', `/appointments/${id}`),

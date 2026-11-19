@@ -1,3 +1,4 @@
+import { calendarDate } from '../lib/calendar.js';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../App.jsx';
@@ -618,7 +619,7 @@ function AddTaskForm({ contactId, onCreated, onCancel }) {
 function AppointmentModal({ contactId, contactName, onCreated, onClose }) {
   const [form, setForm] = useState({
     title: '',
-    date: new Date().toISOString().split('T')[0],
+    date: calendarDate(new Date()),
     start_time: '09:00',
     end_time: '09:30',
     notes: '',
@@ -691,76 +692,24 @@ function AppointmentModal({ contactId, contactName, onCreated, onClose }) {
   );
 }
 
-// ─── Mini RDV form (sidebar inline) ──────────────────────────────────────────
-function AddAppointmentForm({ contactId, contactName, onCreated, onCancel }) {
-  const [form, setForm] = useState({
-    title: '',
-    date: new Date().toISOString().split('T')[0],
-    start_time: '09:00',
-    end_time: '09:30',
-    notes: '',
-  });
-  const [loading, setLoading] = useState(false);
-
-  const [error, setError] = useState('');
-
-  async function submit(e) {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const appt = await api.createAppointment({ ...form, contact_id: contactId });
-      onCreated(appt);
-    } catch (err) { setError(err.message); setLoading(false); }
-  }
-
-  return (
-    <form onSubmit={submit} className="bg-slate-50 rounded-xl p-3 mb-3 space-y-2">
-      <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))}
-        placeholder="Titre du RDV" className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
-      <input type="date" value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))}
-        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
-      <div className="flex gap-2">
-        <input type="time" value={form.start_time} onChange={e => setForm(f=>({...f,start_time:e.target.value}))}
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
-        <input type="time" value={form.end_time} onChange={e => setForm(f=>({...f,end_time:e.target.value}))}
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5"/>
-      </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
-        <button type="submit" disabled={loading} className="flex-1 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-          {loading ? '…' : 'Créer le RDV'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export default function ContactPage({ contactId, onBack, onNavigate, onNewBillingDoc }) {
+export default function ContactPage({ contactId, onBack, onNavigate, onNewBillingDoc, onOpenPlanning }) {
   const { user } = useAuth();
   const canMessage = user?.role === 'admin' || user?.permissions?.messaging !== false;
   const [contact, setContact] = useState(null);
   const [fields, setFields] = useState([]);
   const [interactions, setInteractions] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [opportunities, setOpportunities] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [installers, setInstallers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDeal, setShowAddDeal] = useState(false);
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [showAddAppt, setShowAddAppt] = useState(false); // inline sidebar form
   const [showApptModal, setShowApptModal] = useState(false); // modal (topbar button)
   const [showMenu, setShowMenu] = useState(false);
   const [sendModal, setSendModal] = useState(null); // null | { type: 'email'|'whatsapp' }
 
   const loadData = useCallback(async () => {
-    const [contactList, fieldList, ints, ts, opps, appts] = await Promise.all([
+    const [contactList, fieldList, ints, appts] = await Promise.all([
       api.getContacts(),
       api.getFields(),
       api.getContactInteractions(contactId),
-      api.getContactTasks(contactId),
-      api.getOpportunities(),
       api.getContactAppointments(contactId),
     ]);
     const c = contactList.find(x => x.id === contactId);
@@ -775,8 +724,6 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     setInstallers([...installerMap.values()]);
     setFields(fieldList);
     setInteractions(ints);
-    setTasks(ts);
-    setOpportunities(opps.filter(o => o.contact_id === contactId));
     setAppointments(appts);
     setLoading(false);
   }, [contactId]);
@@ -798,16 +745,6 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     const newData = { ...contact.custom_data, [fieldName]: value };
     const updated = await api.updateContact(contact.id, { custom_data: newData });
     setContact(prev => ({ ...prev, custom_data: updated.custom_data }));
-  }
-
-  async function toggleTask(task) {
-    // Optimistic
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
-    try {
-      await api.updateTask(task.id, { done: !task.done });
-    } catch {
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: task.done } : t));
-    }
   }
 
   function handleInteractionCreated(interaction) {
@@ -849,18 +786,10 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
     ? interactions.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b)
     : null;
 
-  // Open tasks count
-  const openTasksCount = tasks.filter(t => !t.done).length;
-
-  // Total deal value
-  const totalDealValue = opportunities.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
-
-  // Build timeline: combine interactions + tasks + opportunities + contact created
+  // Contact activity timeline.
   const timelineItems = [];
 
   interactions.forEach(i => timelineItems.push({ _type: 'interaction', _date: new Date(i.date), ...i }));
-  tasks.forEach(t => timelineItems.push({ _type: 'task', _date: new Date(t.created_at || t.due_date || Date.now()), ...t }));
-  opportunities.forEach(o => timelineItems.push({ _type: 'opportunity', _date: new Date(o.created_at), ...o }));
   timelineItems.push({ _type: 'created', _date: new Date(contact.created_at) });
 
   timelineItems.sort((a, b) => b._date - a._date);
@@ -889,15 +818,6 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         <span className="text-sm font-medium text-slate-900 truncate">{name}</span>
 
         <div className="flex-1" />
-
-        {/* RDV button */}
-        <button
-          onClick={() => setShowApptModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-violet-50 text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors"
-        >
-          <CalendarDays className="w-3.5 h-3.5" />
-          RDV
-        </button>
 
         {/* Billing buttons */}
         {onNewBillingDoc && (
@@ -1041,22 +961,6 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
                 <span>Dernière interaction : </span>
                 <span className="font-medium text-slate-700">{lastInteraction ? fmtDate(lastInteraction.date) : '—'}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CheckSquare className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-medium text-slate-700">{openTasksCount}</span>
-                <span>tâche{openTasksCount !== 1 ? 's' : ''} ouverte{openTasksCount !== 1 ? 's' : ''}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-medium text-slate-700">{opportunities.length}</span>
-                <span>affaire{opportunities.length !== 1 ? 's' : ''}</span>
-              </div>
-              {totalDealValue > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className="font-semibold text-indigo-600">{totalDealValue.toLocaleString('fr-FR')} €</span>
-                  <span>valeur totale</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1163,12 +1067,6 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
                   />
                 );
               }
-              if (item._type === 'task') {
-                return <TimelineTask key={`task-${item.id}`} item={item} />;
-              }
-              if (item._type === 'opportunity') {
-                return <TimelineOpportunity key={`opp-${item.id}`} item={item} />;
-              }
               if (item._type === 'created') {
                 return <TimelineCreated key="created" contact={contact} />;
               }
@@ -1183,7 +1081,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           </div>
         </div>
 
-        {/* ── RDV modal (topbar button) ── */}
+        {/* ── Rendez-vous modal ── */}
         {showApptModal && (
           <AppointmentModal
             contactId={contactId}
@@ -1210,122 +1108,28 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
           />
         )}
 
-        {/* ── RIGHT: Deals + Tasks ── */}
+        {/* ── RIGHT: Appointments, map and attachments ── */}
         <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 bg-white md:overflow-y-auto flex-shrink-0 px-5 py-5">
-
-          {/* AFFAIRES */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Affaires</p>
-                {opportunities.length > 0 && (
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                    {opportunities.length}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setShowAddDeal(true)}
-                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Ajouter
-              </button>
-            </div>
-
-            {showAddDeal && (
-              <AddDealForm
-                contactId={contactId}
-                onCreated={opp => { setOpportunities(prev => [opp, ...prev]); setShowAddDeal(false); }}
-                onCancel={() => setShowAddDeal(false)}
-              />
-            )}
-
-            {opportunities.length === 0 && !showAddDeal && (
-              <p className="text-xs text-slate-400 italic">Aucune affaire</p>
-            )}
-
-            {opportunities.map(deal => (
-              <DealCard key={deal.id} deal={deal} onUpdate={loadData} />
-            ))}
-          </div>
-
-          <div className="border-t border-slate-100 mb-6" />
-
-          {/* TÂCHES */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Tâches</p>
-                {openTasksCount > 0 && (
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                    {openTasksCount}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setShowAddTask(true)}
-                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Ajouter
-              </button>
-            </div>
-
-            {tasks.map(task => (
-              <TaskItem key={task.id} task={task} onToggle={toggleTask} />
-            ))}
-
-            {tasks.length === 0 && !showAddTask && (
-              <p className="text-xs text-slate-400 italic">Aucune tâche</p>
-            )}
-
-            {showAddTask && (
-              <AddTaskForm
-                contactId={contactId}
-                onCreated={task => { setTasks(prev => [...prev, task]); setShowAddTask(false); }}
-                onCancel={() => setShowAddTask(false)}
-              />
-            )}
-          </div>
-
-          <div className="border-t border-slate-100 mb-6 mt-6" />
 
           {/* RDV */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">RDV</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Rendez-vous</p>
                 {appointments.filter(a => a.status !== 'cancelled').length > 0 && (
                   <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
                     {appointments.filter(a => a.status !== 'cancelled').length}
                   </span>
                 )}
               </div>
-              <button onClick={() => setShowAddAppt(true)}
+              <button onClick={() => setShowApptModal(true)}
                 className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                 <Plus className="w-3.5 h-3.5" /> Ajouter
               </button>
             </div>
 
-            {showAddAppt && (
-              <AddAppointmentForm
-                contactId={contactId}
-                contactName={name}
-                onCreated={appt => {
-                  setAppointments(prev => [appt, ...prev]);
-                  setShowAddAppt(false);
-                  // Recharger les interactions pour afficher la note auto générée par le backend
-                  api.getContactInteractions(contactId).then(setInteractions).catch(() => {});
-                }}
-                onCancel={() => setShowAddAppt(false)}
-              />
-            )}
-
-            {appointments.length === 0 && !showAddAppt && (
-              <p className="text-xs text-slate-400 italic">Aucun RDV</p>
-            )}
+            {appointments.length === 0 && <p className="text-xs text-slate-400 italic">Aucun rendez-vous</p>}
 
             <div className="space-y-2">
               {appointments.map(appt => {
@@ -1345,6 +1149,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
                           {new Date(appt.date).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
                           {' · '}{appt.start_time}–{appt.end_time}
                         </p>
+                        {onOpenPlanning && <button type="button" onClick={() => onOpenPlanning(String(appt.date).slice(0, 10))} className="mt-2 min-h-9 text-xs font-medium text-indigo-700 hover:underline">Voir dans le planning</button>}
                         {appt.status === 'pending' && <p className="text-xs text-amber-600 mt-0.5">En attente de confirmation</p>}
                         {isPast && appt.status === 'confirmed' && <p className="text-xs text-slate-400 mt-0.5">Passé</p>}
                       </div>

@@ -44,6 +44,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(() => new URLSearchParams(window.location.search).get('document') ? 'billing' : 'dashboard');
+  const [planningDate, setPlanningDate] = useState(null);
   const [selectedContact, setSelectedContact] = useState(null);
   const [selectedContactId, setSelectedContactId] = useState(() => {
     const id = Number(new URLSearchParams(window.location.search).get('contact'));
@@ -128,6 +129,11 @@ export default function App() {
           contactId={selectedContactId}
           onBack={() => setSelectedContactId(null)}
           onNavigate={setCurrentPage}
+          onOpenPlanning={(user.role === 'admin' || (user.permissions?.appointments_level && user.permissions.appointments_level !== 'none')) && isEnabled('planning') ? date => {
+            setPlanningDate(date);
+            setSelectedContactId(null);
+            setCurrentPage('planning');
+          } : undefined}
           onNewBillingDoc={(contact, type) => {
             setPendingBillingDoc({ type, contact });
             setSelectedContactId(null);
@@ -153,7 +159,7 @@ export default function App() {
     ...(can('billing') && isEnabled('billing') && { accounting: <Accounting /> }),
     ...(can('messaging') && isEnabled('messaging') && { messaging: <Messaging /> }),
     ...(can('contacts') && { campaigns: <Campaigns /> }),
-    ...((isAdmin || (perms.appointments_level && perms.appointments_level !== 'none')) && isEnabled('planning') && { planning: <Planning /> }),
+    ...((isAdmin || (perms.appointments_level && perms.appointments_level !== 'none')) && isEnabled('planning') && { planning: <Planning initialDate={planningDate} /> }),
     ...(isEnabled('reports') && { reports: <Reports /> }),
     ...(isEnabled('api') && { api: <ApiDocs /> }),
     ...(isAdmin && { team: <Team /> }),

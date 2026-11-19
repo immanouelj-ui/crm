@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Clock, User, Check, X, AlertCircle, Trash2, Calendar } from 'lucide-react';
 import { api } from '../api';
+import { calendarDate } from '../lib/calendar.js';
 import { useAuth } from '../App';
 
 const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -51,7 +52,7 @@ function addDays(date, n) {
 }
 
 function toDateStr(date) {
-  return date.toISOString().split('T')[0];
+  return calendarDate(date);
 }
 
 function fmt(h, m = 0) {
@@ -360,12 +361,12 @@ function AvailabilitySettings({ onClose }) {
 }
 
 // ── Composant principal ───────────────────────────────────────────────────────
-export default function Planning() {
+export default function Planning({ initialDate }) {
   const { user } = useAuth();
   const isAdminUser = !user?.role || user?.role === 'admin';
   const apptLevel = isAdminUser ? 'confirm' : (user?.permissions?.appointments_level || 'view');
 
-  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(initialDate ? new Date(initialDate + 'T12:00:00') : new Date()));
   const [appointments, setAppointments] = useState([]);
   const [availability, setAvailability] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -376,28 +377,37 @@ export default function Planning() {
   const [newApptSlot, setNewApptSlot] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [showPending, setShowPending] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const loadVersion = useRef(0);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadVersion.current;
+    setLoading(true); setLoadError('');
     try {
-      const [appts, avail, conts] = await Promise.all([
-        api.getAppointments(toDateStr(weekStart)),
-        api.getAvailability(),
-        api.getContacts(),
-      ]);
+      const appts = await api.getAppointments(toDateStr(weekStart));
+      if (version !== loadVersion.current) return;
       setAppointments(appts);
-      setAvailability(avail);
-      setContacts(conts);
-      if (isAdminUser) {
-        const { count } = await api.getPendingCount();
-        setPendingCount(count);
-      }
-    } finally { setLoading(false); }
+      const details = await Promise.allSettled([
+        api.getAvailability(), api.getContacts(),
+        isAdminUser ? api.getPendingCount() : Promise.resolve({ count: 0 }),
+      ]);
+      if (version !== loadVersion.current) return;
+      if (details[0].status === 'fulfilled') setAvailability(details[0].value);
+      if (details[1].status === 'fulfilled') setContacts(details[1].value);
+      if (details[2].status === 'fulfilled') setPendingCount(Number(details[2].value.count) || 0);
+    } catch (error) {
+      if (version === loadVersion.current) setLoadError(error.message || 'Impossible de charger les rendez-vous.');
+    } finally { if (version === loadVersion.current) setLoading(false); }
   }, [weekStart, isAdminUser]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+    const refresh = () => { if (document.visibilityState === 'visible') loadData(); };
+    window.addEventListener('focus', refresh);
+    return () => { loadVersion.current++; window.removeEventListener('focus', refresh); };
+  }, [loadData]);
 
   function prevWeek() { setWeekStart(d => addDays(d, -7)); }
   function nextWeek() { setWeekStart(d => addDays(d, 7)); }
@@ -475,6 +485,10 @@ export default function Planning() {
           )}
         </div>
       </div>
+
+      {loadError && <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700">
+        <span>{loadError}</span><button type="button" onClick={loadData} className="min-h-10 font-semibold underline">Réessayer</button>
+      </div>}
 
       {/* Panneau demandes en attente */}
       {showPending && pendingAppts.length > 0 && (
