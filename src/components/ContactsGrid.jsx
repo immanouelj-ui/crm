@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,14 +8,14 @@ import {
 import { api } from '../api.js';
 import {
   Plus, Trash2, Download, Upload, Settings2, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone, PhoneCall, CheckCircle, Image as ImageIcon, Pencil,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X, Filter, Bookmark, BookmarkCheck, ChevronsUpDown, Phone, PhoneCall, CheckCircle, Image as ImageIcon,
 } from 'lucide-react';
 import FieldManager from './FieldManager.jsx';
 import ImportModal from './ImportModal.jsx';
 import { CreateCampaignModal } from './Campaigns.jsx';
 import { triggerCall } from '../lib/call.js';
 import { getPhotoUrls, isPhotosField } from '../lib/leadPhotos.js';
-import { splitLeadNotes, updateLeadNotes } from '../lib/leadNotes.js';
+import { splitLeadNotes } from '../lib/leadNotes.js';
 
 // ── Filter logic ─────────────────────────────────────────────────────────────
 
@@ -459,98 +459,7 @@ function NewContactModal({ fields, onClose, onCreated }) {
   );
 }
 
-function CellEditor({ value, field, onSave, onCancel }) {
-  const [val, setVal] = useState(value ?? '');
-  const ref = useRef();
-  const containerRef = useRef();
-
-  useEffect(() => {
-    ref.current?.focus();
-    if (field.type === 'select') {
-      setTimeout(() => { ref.current?.showPicker?.(); }, 0);
-    }
-  }, []);
-
-  // Click outside to cancel
-  useEffect(() => {
-    function handleClick(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        onCancel();
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [onCancel]);
-
-  function handleKeyDown(e) {
-    if (e.key === 'Enter') onSave(val);
-    if (e.key === 'Escape') onCancel();
-  }
-
-  if (field.type === 'select') {
-    const options = parseOptions(field.options);
-    return (
-      <div ref={containerRef}>
-        <select
-          ref={ref}
-          value={val}
-          onChange={e => { onSave(e.target.value); }}
-          onClick={e => e.stopPropagation()}
-          className="w-full h-full px-2 py-1 text-sm border-0 outline-none bg-indigo-50 rounded cursor-pointer"
-        >
-          <option value="">—</option>
-          {options.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
-        </select>
-      </div>
-    );
-  }
-
-  if (field.type === 'checkbox') {
-    return (
-      <div ref={containerRef}>
-        <input
-          ref={ref}
-          type="checkbox"
-          checked={val === true || val === 'true' || val === 1}
-          onChange={e => { onSave(e.target.checked); }}
-          className="w-4 h-4 accent-indigo-600"
-        />
-      </div>
-    );
-  }
-
-  if (field.type === 'date') {
-    return (
-      <div ref={containerRef}>
-        <input
-          ref={ref}
-          type="date"
-          value={val}
-          onChange={e => setVal(e.target.value)}
-          onBlur={() => onSave(val)}
-          onKeyDown={handleKeyDown}
-          className="w-full h-full px-2 py-1 text-sm border-0 outline-none bg-indigo-50 rounded"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div ref={containerRef}>
-      <input
-        ref={ref}
-        type={field.type === 'number' ? 'number' : 'text'}
-        value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={() => onSave(val)}
-        onKeyDown={handleKeyDown}
-        className="w-full h-full px-2 py-1 text-sm border-0 outline-none bg-indigo-50 rounded"
-      />
-    </div>
-  );
-}
-
-function PhotoThumbnails({ urls, onEdit }) {
+function PhotoThumbnails({ urls }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {urls.map((url, index) => {
@@ -578,15 +487,7 @@ function PhotoThumbnails({ urls, onEdit }) {
           </a>
         );
       })}
-      <button
-        type="button"
-        aria-label="Modifier les photos"
-        title="Modifier les photos"
-        onClick={event => { event.stopPropagation(); onEdit(); }}
-        className="self-center rounded p-1 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+
     </div>
   );
 }
@@ -623,7 +524,6 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   const [fields, setFields] = useState([]);
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [editingCell, setEditingCell] = useState(null);
   const [showFieldManager, setShowFieldManager] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -656,15 +556,6 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  async function saveCell(contactId, fieldName, newValue) {
-    const contact = contacts.find(c => c.id === contactId);
-    if (!contact) return;
-    const newData = { ...contact.custom_data, [fieldName]: newValue };
-    const updated = await api.updateContact(contactId, { custom_data: newData });
-    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, custom_data: updated.custom_data } : c));
-    setEditingCell(null);
-  }
 
   async function handleContactCreated(newContact) {
     setContacts(prev => [newContact, ...prev]);
@@ -771,72 +662,24 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
         size: field.name === 'notes' ? 220 : field.type === 'email' ? 180 : 140,
         cell: ({ row, getValue }) => {
           const contactId = row.original.id;
-          const isEditing = editingCell?.rowId === contactId && editingCell?.fieldName === field.name;
-
           const rawValue = getValue();
-          const { summary, notes: val } = field.name === 'notes' ? splitLeadNotes(rawValue) : { notes: rawValue };
-
-          if (isEditing) {
-            return (
-              <CellEditor
-                value={val}
-                field={field}
-                onSave={(newValue) => saveCell(contactId, field.name, updateLeadNotes(summary, newValue))}
-                onCancel={() => setEditingCell(null)}
-              />
-            );
-          }
-
+          const val = field.name === 'notes' ? splitLeadNotes(rawValue).notes : rawValue;
           if (isPhotosField(field)) {
             const urls = getPhotoUrls(val);
-            if (urls.length) {
-              return (
-                <PhotoThumbnails
-                  urls={urls}
-                  onEdit={() => setEditingCell({ rowId: contactId, fieldName: field.name })}
-                />
-              );
-            }
+            if (urls.length) return <PhotoThumbnails urls={urls} />;
           }
-
-          // Select fields: single click opens editor directly (no navigation)
-          if (field.type === 'select') {
-            return (
-              <div
-                className="cursor-pointer min-h-[22px] flex items-center group/cell relative"
-                onClick={(e) => { e.stopPropagation(); setEditingCell({ rowId: contactId, fieldName: field.name }); }}
-              >
-                {(val === null || val === undefined || val === '') ? (
-                  <span className="text-slate-200 text-xs group-hover/cell:text-slate-400 transition-colors">—</span>
-                ) : (
-                  <CellDisplay value={val} field={field} />
-                )}
-              </div>
-            );
-          }
-
           return (
-            <div
-              className="min-h-[22px] flex items-center gap-1.5 group/cell relative cursor-text"
-              onClick={(e) => { e.stopPropagation(); setEditingCell({ rowId: contactId, fieldName: field.name }); }}
-            >
-              {(val === null || val === undefined || val === '') ? (
-                <span className="text-slate-200 text-xs group-hover/cell:text-slate-400 transition-colors">
-                  Cliquer pour éditer
-                </span>
-              ) : (
-                <>
-                  <CellDisplay value={val} field={field} />
-                  {field.type === 'phone' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); triggerCall(val, contactId); }}
-                      className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
-                      title="Appeler via Twilio"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-indigo-500" />
-                    </button>
-                  )}
-                </>
+            <div className="min-h-[22px] flex items-center gap-1.5 group/cell cursor-pointer">
+              <CellDisplay value={val} field={field} />
+              {field.type === 'phone' && val && (
+                <button
+                  type="button"
+                  onClick={event => { event.stopPropagation(); triggerCall(val, contactId); }}
+                  className="opacity-0 group-hover/cell:opacity-100 focus:opacity-100 transition-opacity flex-shrink-0 p-1 rounded-md hover:bg-indigo-100"
+                  title="Appeler via Twilio"
+                >
+                  <Phone className="w-3.5 h-3.5 text-indigo-500" />
+                </button>
               )}
             </div>
           );
@@ -884,7 +727,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
         ),
       },
     ];
-  }, [fields, editingCell, selectedRows, page]);
+  }, [fields, selectedRows, page, onSelectContact]);
 
   const tableColumnVisibility = React.useMemo(() => {
     const vis = {};
