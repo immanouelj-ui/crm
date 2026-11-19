@@ -1,3 +1,4 @@
+import { groupContactFields, contactDisplayName } from '../lib/contactSections.js';
 import { calendarDate } from '../lib/calendar.js';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api.js';
@@ -8,6 +9,7 @@ import {
   X, User, FileText, Users, Edit3, MessageSquare, Receipt, FilePlus2, CalendarDays, Smartphone, Printer,
 } from 'lucide-react';
 import SendMessageModal from './SendMessageModal.jsx';
+import Softphone from './Softphone.jsx';
 import Attachments from './Attachments.jsx';
 import InstallerAssignment from './InstallerAssignment.jsx';
 import QontoContactButton from './QontoContactButton.jsx';
@@ -701,7 +703,8 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   const [appointments, setAppointments] = useState([]);
   const [installers, setInstallers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mobileSection, setMobileSection] = useState('info');
+  const [activeSection, setActiveSection] = useState('overview');
+  const [showPastAppointments, setShowPastAppointments] = useState(false);
   const [showApptModal, setShowApptModal] = useState(false); // modal (topbar button)
   const [showMenu, setShowMenu] = useState(false);
   const [sendModal, setSendModal] = useState(null); // null | { type: 'email'|'whatsapp' }
@@ -778,7 +781,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
 
   const cd = contact.custom_data || {};
   const buildingAddress = getBuildingAddress(cd);
-  const name = cd.nom || cd.name || `Contact #${contact.id}`;
+  const name = contactDisplayName(cd, contact.id);
   const statusBadge = STATUS_BADGE[cd.statut] || STATUS_BADGE[cd.status] || 'bg-slate-100 text-slate-600';
   const statusVal = cd.statut || cd.status;
 
@@ -801,383 +804,68 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   const { summary: leadSummary, notes } = splitLeadNotes(cd.notes);
   const photoFields = fields.filter(field => isPhotosField(field) && getPhotoUrls(cd[field.name]).length);
   const leadPhotoUrls = getPhotoUrls([cd.photos, ...photoFields.map(field => cd[field.name])].flat());
-  const mainFields = visibleFields.filter(field => field.name !== 'notes' && !photoFields.includes(field));
+  const mainFields = visibleFields.filter(field => field.name !== 'notes' && !isPhotosField(field));
+
+  const groups = groupContactFields(mainFields);
+  const phoneField = fields.find(field => ['phone','tel'].includes(field.type));
+  const phone = cd[phoneField?.name] || cd.phone || cd.telephone || cd.tel || cd.mobile || '';
+  const emailField = fields.find(field => field.type === 'email');
+  const email = cd[emailField?.name] || cd.email || '';
+  const upcoming = appointments.filter(a => a.status !== 'cancelled' && new Date(`${String(a.date).slice(0,10)}T${a.end_time}`) >= new Date()).sort((a,b) => String(a.date).localeCompare(String(b.date)) || a.start_time.localeCompare(b.start_time));
+  const past = appointments.filter(a => !upcoming.some(item => item.id === a.id)).sort((a,b) => String(b.date).localeCompare(String(a.date)) || b.start_time.localeCompare(a.start_time));
+  const renderFields = list => <div className="client-field-grid">{list.map(field => <EditableField key={field.name} label={field.label} value={cd[field.name]} fieldDef={field} onSave={value => saveField(field.name,value)} contactId={contactId}/>)}</div>;
+  const printForm = () => { if (!openReceptionPrint(cd)) window.alert('Autorise l’ouverture du nouvel onglet pour imprimer le procès-verbal.'); };
+  const appointmentCard = appt => <div key={appt.id} className={`client-appointment ${appt.status === 'cancelled' ? 'is-cancelled' : ''}`}>
+    <div className="client-appointment-date"><strong>{Number(String(appt.date).slice(8,10))}</strong><span>{new Date(String(appt.date).slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR',{month:'short'})}</span></div>
+    <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-900">{appt.title || 'Rendez-vous'}</p><p className="mt-1 text-xs text-slate-500">{new Date(String(appt.date).slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long'})} · {appt.start_time.slice(0,5)} – {appt.end_time.slice(0,5)}</p><p className="mt-1 text-xs text-slate-400">{appt.status === 'pending' ? 'En attente de confirmation' : appt.status === 'cancelled' ? 'Annulé' : upcoming.includes(appt) ? 'Confirmé' : 'Passé'}</p>{onOpenPlanning && <button type="button" onClick={() => onOpenPlanning(String(appt.date).slice(0,10))} className="text-action mt-2 min-h-8">Voir dans le planning</button>}</div>
+  </div>;
 
   return (
-    <div className="client-workspace h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
-
-      {/* ── Top bar ── */}
-      <div className="client-topbar bg-white border-b border-slate-200 h-14 flex items-center px-3 md:px-6 gap-3 flex-shrink-0 z-10 shadow-sm overflow-x-auto scrollbar-thin">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mr-1"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Contacts
-        </button>
-        <span className="text-slate-300">/</span>
-        <span className="text-sm font-medium text-slate-900 truncate">{name}</span>
-
-        <div className="flex-1" />
-
-        {/* Billing buttons */}
-        {onNewBillingDoc && (
-          <>
-            <button
-              onClick={() => onNewBillingDoc(contact, 'quote')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-50 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              <FilePlus2 className="w-3.5 h-3.5" />
-              Devis
-            </button>
-            <button
-              onClick={() => onNewBillingDoc(contact, 'invoice')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              Facture
-            </button>
-          </>
-        )}
-
-        {/* Action buttons */}
-        {(() => {
-          const phoneField = fields.find(f => f.type === 'phone' || f.type === 'tel');
-          const phoneVal = phoneField ? cd[phoneField.name] : (cd.phone || cd.telephone || cd.tel || '');
-          return (
-            <button
-              type="button"
-              disabled={!phoneVal}
-              title={phoneVal || 'Aucun numéro'}
-              onClick={() => triggerCall(phoneVal, contactId)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg transition-colors ${phoneVal ? 'hover:bg-emerald-100 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-            >
-              <Phone className="w-3.5 h-3.5" />
-              {phoneVal ? `Appel · ${phoneVal}` : 'Appel'}
-            </button>
-          );
-        })()}
-        {canMessage && (
-          <button
-            onClick={() => setSendModal({ type: 'sms' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            SMS
-          </button>
-        )}
-        {canMessage && (
-          <button
-            onClick={() => setSendModal({ type: 'email' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            Email
-          </button>
-        )}
-        {canMessage && (
-          <button
-            onClick={() => setSendModal({ type: 'whatsapp' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#25D366]/10 text-[#1a9e4c] border border-[#25D366]/30 rounded-lg hover:bg-[#25D366]/20 transition-colors"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            WhatsApp
-          </button>
-        )}
-        <div className="relative">
-          <button
-            onClick={() => setShowMenu(m => !m)}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 w-40 py-1">
-              <button
-                onClick={() => { setShowMenu(false); if (window.confirm('Supprimer ce contact ?')) { api.deleteContact(contact.id).then(onBack); } }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Supprimer
-              </button>
-            </div>
-          )}
-        </div>
+    <div className="client-record">
+      <header className="client-record-topbar">
+        <button type="button" onClick={onBack} className="inline-flex min-h-10 shrink-0 items-center gap-1 text-sm text-slate-500 hover:text-slate-900"><ChevronLeft size={16}/>Contacts</button><span className="text-slate-300">/</span><span className="truncate text-sm font-medium">{name}</span>
+        <div className="relative ml-auto shrink-0"><button type="button" aria-label="Options du contact" aria-expanded={showMenu} onClick={() => setShowMenu(value=>!value)} className="icon-control"><MoreVertical size={18}/></button>{showMenu&&<div className="absolute right-0 top-full z-30 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-xl"><button type="button" onClick={() => { setShowMenu(false); if (window.confirm('Supprimer ce contact ?')) api.deleteContact(contact.id).then(onBack); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm text-red-600 hover:bg-red-50"><Trash2 size={15}/>Supprimer</button></div>}</div>
+      </header>
+      <div className="client-record-profile">
+        <div className={`client-record-avatar ${avatarColor(name)}`}>{initials(name)}</div>
+        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h1>{name}</h1>{statusVal&&<span className={`rounded-lg px-2.5 py-1 text-xs font-medium ${statusBadge}`}>{statusVal}</span>}</div><div className="client-record-details">{phone&&<a href={`tel:${phone}`}><Phone size={13}/>{phone}</a>}{email&&<a href={`mailto:${email}`}><Mail size={13}/>{email}</a>}{!phone&&!email&&<span>Renseignez les coordonnées ci-dessous</span>}</div>{buildingAddress&&<p className="mt-2 truncate text-xs text-slate-400">{buildingAddress}</p>}</div>
+        <div className="client-record-actions"><button type="button" disabled={!phone} onClick={()=>triggerCall(phone,contactId)} className="primary-action disabled:opacity-40"><Phone size={15}/>Appeler</button>{canMessage&&<><button type="button" onClick={()=>setSendModal({type:'whatsapp'})} className="secondary-action"><MessageSquare size={15}/>WhatsApp</button><button type="button" onClick={()=>setSendModal({type:'email'})} className="secondary-action"><Mail size={15}/>E-mail</button><button type="button" onClick={()=>setSendModal({type:'sms'})} className="secondary-action"><Smartphone size={15}/>SMS</button></>}{onNewBillingDoc&&<button type="button" onClick={()=>onNewBillingDoc(contact,'quote')} className="secondary-action"><FilePlus2 size={15}/>Créer un devis</button>}</div>
       </div>
-
-      {/* ── Hero header ── */}
-      <div className="client-hero bg-white border-b border-slate-200 px-8 py-5 flex-shrink-0">
-        <div className="flex items-start gap-5">
-          {/* Avatar */}
-          <div className={`w-16 h-16 rounded-2xl ${avatarColor(name)} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0`}>
-            {initials(name)}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-slate-900">{name}</h1>
-              {statusVal && (
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${statusBadge}`}>{statusVal}</span>
-              )}
-              {contact.updated_at && (
-                <span className="text-xs text-slate-400">Modifié {daysAgo(contact.updated_at)}</span>
-              )}
+      <nav className="client-record-tabs" aria-label="Sections de la fiche client">{[['overview','Vue d’ensemble'],['installation','Installation'],['documents','Documents'],['activity','Historique']].map(([value,label])=><button key={value} type="button" aria-pressed={activeSection===value} onClick={()=>setActiveSection(value)} className={activeSection===value?'is-active':''}>{label}{value==='activity'&&interactions.length>0&&<span>{interactions.length}</span>}</button>)}</nav>
+      <main className="client-record-content scrollbar-thin">
+        <div className="client-record-inner">
+          <div className={activeSection==='overview'?'record-overview':'hidden'}>
+            <div className="record-main-column">
+              <section className="record-card"><div className="record-card-heading"><div><h2>Coordonnées & suivi</h2><p>Les informations essentielles du client</p></div><User size={18}/></div><div className="record-card-body">{groups.contact.length?renderFields(groups.contact):<p className="text-sm text-slate-400">Aucun champ de coordonnées visible.</p>}</div></section>
+              {groups.address.length>0&&<section className="record-card"><div className="record-card-heading"><div><h2>Adresse du client</h2><p>Localisation du site d’intervention</p></div><Building2 size={18}/></div><div className="record-card-body">{renderFields(groups.address)}</div></section>}
+              {notesField&&<section className="record-card"><div className="record-card-heading"><div><h2>Notes du client</h2><p>Les précisions utiles à garder sous la main</p></div><FileText size={18}/></div><div className="record-card-body"><EditableField label={notesField.label} value={notes} fieldDef={notesField} onSave={value=>saveField(notesField.name,updateLeadNotes(leadSummary,value))}/></div></section>}
+              {groups.extra.length>0&&<details className="record-card record-additional"><summary>Informations complémentaires <span>{groups.extra.length} champs</span></summary><div className="record-card-body">{renderFields(groups.extra)}</div></details>}
             </div>
-            {(cd.poste || cd.company) && (
-              <p className="text-sm text-slate-500 mt-0.5">
-                {[cd.poste, cd.company].filter(Boolean).join(' · ')}
-              </p>
-            )}
-
-            {buildingAddress && (
-              <div className="mt-2 md:hidden">
-                <GoogleMapsLink
-                  address={buildingAddress}
-                  className="min-h-11 rounded-lg bg-indigo-50 px-3 py-2 text-indigo-700 hover:bg-indigo-100"
-                >
-                  Voir dans Google Maps
-                </GoogleMapsLink>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!openReceptionPrint(cd)) {
-                  window.alert("Autorise l’ouverture du nouvel onglet pour imprimer le procès-verbal.");
-                }
-              }}
-              className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
-            >
-              <Printer className="h-4 w-4" aria-hidden="true" />
-              Imprimer la fiche d’intervention
-            </button>
-
-            {user?.role === 'admin' && <QontoContactButton key={contactId} contactId={contactId} />}
-
-            {/* Quick stats */}
-            <div className="flex items-center gap-6 mt-3 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Dernière interaction : </span>
-                <span className="font-medium text-slate-700">{lastInteraction ? fmtDate(lastInteraction.date) : '—'}</span>
-              </div>
-            </div>
+            <aside className="record-side-column">
+              <section className="record-card"><div className="record-card-heading"><div><h2>Rendez-vous</h2><p>{upcoming.length?`${upcoming.length} à venir`:'Aucun rendez-vous à venir'}</p></div><button type="button" onClick={()=>setShowApptModal(true)} className="icon-control" aria-label="Ajouter un rendez-vous"><Plus size={18}/></button></div><div className="record-appointments">{upcoming.length?upcoming.map(appointmentCard):<div className="record-empty"><CalendarDays size={24}/><p>Planifiez le prochain échange<br/>ou la prochaine installation.</p><button type="button" className="text-action" onClick={()=>setShowApptModal(true)}>Ajouter un rendez-vous</button></div>}{past.length>0&&<><button type="button" className="record-history-toggle" aria-expanded={showPastAppointments} onClick={()=>setShowPastAppointments(value=>!value)}>{showPastAppointments?'Masquer':'Afficher'} les rendez-vous passés et annulés ({past.length})</button>{showPastAppointments&&past.map(appointmentCard)}</>}</div></section>
+              {groups.project.length>0&&<section className="record-card"><div className="record-card-heading"><div><h2>Le projet</h2><p>Les caractéristiques principales</p></div><button type="button" className="text-action" onClick={()=>setActiveSection('installation')}>Modifier</button></div><dl className="record-project-summary">{groups.project.filter(field=>cd[field.name]!==undefined&&cd[field.name]!==''&&cd[field.name]!==null).slice(0,5).map(field=><div key={field.name}><dt>{field.label}</dt><dd>{typeof cd[field.name]==='boolean'?(cd[field.name]?'Oui':'Non'):String(cd[field.name])}</dd></div>)}</dl></section>}
+              {buildingAddress&&<section className="record-card record-map"><ContactMap key={buildingAddress} address={buildingAddress}/></section>}
+              <div className="record-metadata"><p>Créé le <span>{fmtDate(contact.created_at)}</span></p><p>Dernière modification <span>{fmtDate(contact.updated_at)}</span></p>{lastInteraction&&<p>Dernier échange <span>{fmtDate(lastInteraction.date)}</span></p>}</div>
+            </aside>
           </div>
+          <div className={activeSection==='installation'?'record-installation':'hidden'}>
+            <section className="record-card"><div className="record-card-heading"><div><h2>Projet & installation</h2><p>Logement, véhicule, borne et contraintes du chantier</p></div><Building2 size={18}/></div><div className="record-card-body">{groups.project.length?renderFields(groups.project):<p className="text-sm text-slate-400">Les champs techniques du client apparaîtront ici.</p>}</div></section>
+            <section className="record-card record-assignment"><div className="record-card-heading"><div><h2>Organisation de l’intervention</h2><p>Installateur, créneau et envoi des coordonnées</p></div><CalendarDays size={18}/></div><div className="record-card-body">{canMessage?<InstallerAssignment key={contactId} contact={contact} appointments={appointments} fields={fields} installers={installers} onSave={async values=>{const updated=await api.updateContact(contact.id,{custom_data:{...contact.custom_data,...values}});setContact(previous=>({...previous,custom_data:updated.custom_data}));}} onSend={setSendModal}/>:<div className="space-y-3 text-sm text-slate-500"><p>Installateur : {cd.installateur_nom||'Non renseigné'}</p><p>Créneau : {[cd.installation_date,cd.installation_heure].filter(Boolean).join(' à ')||'Non renseigné'}</p></div>}</div></section>
+          </div>
+          <div className={activeSection==='documents'?'record-documents':'hidden'}>
+            <section className="record-card"><div className="record-card-heading"><div><h2>Documents commerciaux</h2><p>Préparer les documents et transmettre le client</p></div><Receipt size={18}/></div><div className="record-document-actions">{onNewBillingDoc&&<><button type="button" className="secondary-action" onClick={()=>onNewBillingDoc(contact,'quote')}><FilePlus2 size={17}/>Créer un devis</button><button type="button" className="secondary-action" onClick={()=>onNewBillingDoc(contact,'invoice')}><Receipt size={17}/>Créer une facture</button></>}<button type="button" className="secondary-action" onClick={printForm}><Printer size={17}/>Imprimer la fiche d’intervention</button>{user?.role==='admin'&&<QontoContactButton key={contactId} contactId={contactId}/>}</div></section>
+            <section className="record-card"><div className="record-card-heading"><div><h2>Photos & pièces jointes</h2><p>Les fichiers du formulaire et les documents ajoutés au dossier</p></div><Paperclip size={18}/></div><div className="record-card-body"><Attachments key={contactId} contactId={contactId} leadPhotoUrls={leadPhotoUrls}/></div></section>
+          </div>
+          <section className={activeSection==='activity'?'record-activity':'hidden'}>
+            <div className="mb-6"><h2 className="text-xl font-semibold tracking-tight">Historique des échanges</h2><p className="mt-2 text-sm text-slate-500">Notes, messages et confirmations de rendez-vous.</p></div>
+            <ActivityComposer contactId={contactId} onCreated={handleInteractionCreated}/>
+            <div className="relative"><div className="absolute bottom-0 left-4 top-0 w-px bg-slate-200"/>{timelineItems.map(item=>item._type==='interaction'?<TimelineInteraction key={`int-${item.id}`} item={item} onDelete={handleDeleteInteraction}/>:<TimelineCreated key="created" contact={contact}/>)}{timelineItems.length<=1&&<p className="ml-11 text-sm text-slate-400">Aucun échange enregistré pour le moment.</p>}</div>
+          </section>
         </div>
-      </div>
-
-      <div className="client-mobile-tabs" aria-label="Sections de la fiche client">
-        {[['info','Informations'],['activity','Activité'],['related','RDV & pièces']].map(([value,label])=><button key={value} type="button" aria-pressed={mobileSection===value} onClick={()=>setMobileSection(value)} className={mobileSection===value?'is-active':''}>{label}</button>)}
-      </div>
-      {/* ── 3-column body (stacks vertically on mobile) ── */}
-      <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col md:flex-row">
-
-        {/* ── LEFT: Properties ── */}
-        <div className={`client-sidebar w-full md:w-64 xl:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:overflow-y-auto flex-shrink-0 px-5 py-5 ${mobileSection === 'info' ? '' : 'hidden md:block'}`}>
-
-          {canMessage && (
-            <InstallerAssignment
-              key={contactId}
-              contact={contact}
-              appointments={appointments}
-              fields={fields}
-              installers={installers}
-              onSave={async (values) => {
-                const updated = await api.updateContact(contact.id, { custom_data: { ...contact.custom_data, ...values } });
-                setContact(previous => ({ ...previous, custom_data: updated.custom_data }));
-              }}
-              onSend={setSendModal}
-            />
-          )}
-
-          {/* COORDONNÉES — dynamic from fields table, mirrors grid columns */}
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Coordonnées</p>
-
-          {mainFields.map(field => (
-            <EditableField
-              key={field.name}
-              label={field.label}
-              value={cd[field.name]}
-              fieldDef={field}
-              onSave={v => saveField(field.name, v)}
-              contactId={contactId}
-            />
-          ))}
-
-          {notesField && (
-            <>
-              <div className="border-t border-slate-100 my-4" />
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">À propos</p>
-              <EditableField
-                label={notesField.label}
-                value={notes}
-                fieldDef={notesField}
-                onSave={v => saveField(notesField.name, updateLeadNotes(leadSummary, v))}
-              />
-            </>
-          )}
-
-          <div className="border-t border-slate-100 my-4" />
-
-          {/* DATES */}
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Dates</p>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Créé le</p>
-              <p className="text-sm text-slate-700 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                {fmtDate(contact.created_at)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Dernière modification</p>
-              <p className="text-sm text-slate-700 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {fmtDate(contact.updated_at)}
-              </p>
-            </div>
-            {lastInteraction && (
-              <div>
-                <p className="text-xs text-slate-400 mb-0.5">Dernière interaction</p>
-                <p className="text-sm text-slate-700 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  {fmtDate(lastInteraction.date)}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── CENTER: Timeline ── */}
-        <div className={`client-timeline flex-1 min-w-0 md:overflow-y-auto px-4 md:px-8 py-6 ${mobileSection === 'activity' ? '' : 'hidden md:block'}`}>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Activité</p>
-
-          {/* Composer */}
-          <ActivityComposer contactId={contactId} onCreated={handleInteractionCreated} />
-
-          {/* Timeline */}
-          <div className="relative">
-            {/* Vertical line */}
-            <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-100 z-0" />
-
-            {timelineItems.map((item, idx) => {
-              if (item._type === 'interaction') {
-                return (
-                  <TimelineInteraction
-                    key={`int-${item.id}`}
-                    item={item}
-                    onDelete={handleDeleteInteraction}
-                  />
-                );
-              }
-              if (item._type === 'created') {
-                return <TimelineCreated key="created" contact={contact} />;
-              }
-              return null;
-            })}
-
-            {timelineItems.length <= 1 && (
-              <div className="ml-11 text-sm text-slate-400 italic">
-                Aucune activité pour l'instant. Ajoutez une note ou une interaction ci-dessus.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Rendez-vous modal ── */}
-        {showApptModal && (
-          <AppointmentModal
-            contactId={contactId}
-            contactName={name}
-            onCreated={appt => {
-              setAppointments(prev => [appt, ...prev]);
-              api.getContactInteractions(contactId).then(setInteractions).catch(() => {});
-            }}
-            onClose={() => setShowApptModal(false)}
-          />
-        )}
-
-        {/* ── Send message modal ── */}
-        {sendModal && (
-          <SendMessageModal
-            contact={contact}
-            fields={fields}
-            type={sendModal.type}
-            initialPhone={sendModal.initialPhone}
-            initialBody={sendModal.initialBody}
-            recipientName={sendModal.recipientName}
-            onClose={() => setSendModal(null)}
-            onSent={() => { setSendModal(null); loadData(); }}
-          />
-        )}
-
-        {/* ── RIGHT: Appointments, map and attachments ── */}
-        <div className={`client-sidebar w-full md:w-72 xl:w-80 border-t md:border-t-0 md:border-l border-slate-200 bg-white md:overflow-y-auto flex-shrink-0 px-5 py-5 ${mobileSection === 'related' ? '' : 'hidden md:block'}`}>
-
-          {/* RDV */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Rendez-vous</p>
-                {appointments.filter(a => a.status !== 'cancelled').length > 0 && (
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                    {appointments.filter(a => a.status !== 'cancelled').length}
-                  </span>
-                )}
-              </div>
-              <button onClick={() => setShowApptModal(true)}
-                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                <Plus className="w-3.5 h-3.5" /> Ajouter
-              </button>
-            </div>
-
-            {appointments.length === 0 && <p className="text-xs text-slate-400 italic">Aucun rendez-vous</p>}
-
-            <div className="space-y-2">
-              {appointments.map(appt => {
-                const isPast = new Date(`${appt.date}T${appt.end_time}`) < new Date();
-                const statusColor = appt.status === 'confirmed' ? 'border-indigo-200 bg-indigo-50' :
-                  appt.status === 'pending' ? 'border-amber-200 bg-amber-50' :
-                  'border-gray-200 bg-gray-50 opacity-60';
-                const statusDot = appt.status === 'confirmed' ? 'bg-indigo-500' :
-                  appt.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400';
-                return (
-                  <div key={appt.id} className={`rounded-xl border p-2.5 ${statusColor}`}>
-                    <div className="flex items-start gap-2">
-                      <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${statusDot}`}/>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{appt.title || 'RDV'}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {new Date(appt.date).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
-                          {' · '}{appt.start_time}–{appt.end_time}
-                        </p>
-                        {onOpenPlanning && <button type="button" onClick={() => onOpenPlanning(String(appt.date).slice(0, 10))} className="mt-2 min-h-9 text-xs font-medium text-indigo-700 hover:underline">Voir dans le planning</button>}
-                        {appt.status === 'pending' && <p className="text-xs text-amber-600 mt-0.5">En attente de confirmation</p>}
-                        {isPast && appt.status === 'confirmed' && <p className="text-xs text-slate-400 mt-0.5">Passé</p>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-t border-slate-100 mb-6" />
-
-          {buildingAddress && <ContactMap key={buildingAddress} address={buildingAddress} />}
-
-          {/* PIÈCES JOINTES */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Pièces jointes</p>
-            </div>
-            <Attachments key={contactId} contactId={contactId} leadPhotoUrls={leadPhotoUrls} />
-          </div>
-        </div>
-      </div>
+      </main>
+      <Softphone/>
+      {showApptModal&&<AppointmentModal contactId={contactId} contactName={name} onCreated={appt=>{setAppointments(previous=>[appt,...previous]);api.getContactInteractions(contactId).then(setInteractions).catch(()=>{});}} onClose={()=>setShowApptModal(false)}/>}
+      {sendModal&&<SendMessageModal contact={contact} fields={fields} type={sendModal.type} initialPhone={sendModal.initialPhone} initialBody={sendModal.initialBody} recipientName={sendModal.recipientName} onClose={()=>setSendModal(null)} onSent={()=>{setSendModal(null);loadData();}}/>}
     </div>
   );
 }
