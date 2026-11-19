@@ -1,230 +1,69 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Users, TrendingUp, AlertCircle, Zap, ArrowRight, Check } from 'lucide-react';
+import { useAuth } from '../App.jsx';
+import { Users, UserPlus, BadgeCheck, CalendarDays, Clock3, RefreshCw, AlertCircle } from 'lucide-react';
 
-function initials(name) {
-  if (!name) return '?';
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-}
-
-const STATUS_COLORS = {
-  Lead: 'bg-purple-100 text-purple-700',
-  Prospect: 'bg-blue-100 text-blue-700',
-  Client: 'bg-emerald-100 text-emerald-700',
-  Inactif: 'bg-slate-100 text-slate-600',
-};
-
-const AVATAR_COLORS = [
-  'bg-indigo-500', 'bg-violet-500', 'bg-pink-500', 'bg-rose-500',
-  'bg-amber-500', 'bg-emerald-500', 'bg-cyan-500', 'bg-blue-500',
-];
-
-function avatarColor(str) {
-  let hash = 0;
-  for (let i = 0; i < (str || '').length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function StatCard({ icon: Icon, label, value, iconBg, danger }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-5 flex items-start gap-4 border border-slate-100">
-      <div className={`p-3 rounded-xl ${iconBg}`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div>
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className={`text-2xl font-bold mt-0.5 ${danger ? 'text-red-500' : 'text-slate-900'}`}>{value}</p>
-      </div>
-    </div>
-  );
-}
-
-const STAGE_COLORS = {
-  Prospect: 'bg-slate-400',
-  Qualifié: 'bg-blue-500',
-  Proposition: 'bg-indigo-500',
-  Négociation: 'bg-amber-500',
-  Gagné: 'bg-emerald-500',
-  'Fermé perdu': 'bg-red-400',
-};
+const labelOf = client => client.custom_data?.nom || client.custom_data?.name || `Contact #${client.id}`;
+const statusOf = client => client.custom_data?.statut || client.custom_data?.status || 'Non renseigné';
+const initials = label => label.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase();
+const civil = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+const displayDate = value => value ? new Date(value).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}) : '';
 
 export default function Dashboard({ onNavigate, onSelectContact }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tasks, setTasks] = useState([]);
-
-  useEffect(() => {
-    Promise.all([api.getDashboard(), api.getTasks()])
-      .then(([dash, allTasks]) => {
-        setData(dash);
-        const today = new Date().toISOString().split('T')[0];
-        const urgent = allTasks.filter(t => !t.done && t.due_date && t.due_date <= today);
-        setTasks(urgent.slice(0, 6));
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function toggleTask(task) {
-    const updated = await api.updateTask(task.id, { done: true });
-    setTasks(prev => prev.filter(t => t.id !== updated.id));
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const overdueCount = data?.overdueTasks ?? 0;
-
-  // Pipeline by stage
-  const stageData = data?.pipelineByStage || [];
-  const maxCount = Math.max(...stageData.map(s => s.count), 1);
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Tableau de bord</h1>
-        <p className="text-slate-500 text-sm mt-1">Vue d'ensemble de votre activité</p>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={Users} label="Total contacts" value={data?.totalContacts ?? 0} iconBg="bg-blue-500" />
-        <StatCard
-          icon={TrendingUp}
-          label="Pipeline total"
-          value={`${(data?.openPipelineValue ?? 0).toLocaleString('fr-FR')} €`}
-          iconBg="bg-emerald-500"
-        />
-        <StatCard
-          icon={AlertCircle}
-          label="Tâches en retard"
-          value={overdueCount}
-          iconBg={overdueCount > 0 ? 'bg-red-500' : 'bg-slate-400'}
-          danger={overdueCount > 0}
-        />
-        <StatCard icon={Zap} label="Leads cette semaine" value={data?.leadsThisWeek ?? 0} iconBg="bg-violet-500" />
-      </div>
-
-      {/* Two column */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-        {/* Left: Recent contacts */}
-        <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Activité récente</h2>
-            <button
-              onClick={() => onNavigate('contacts')}
-              className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-medium"
-            >
-              Voir tous <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {(data?.recentContacts || []).slice(0, 8).map(c => {
-              const name = c.custom_data?.nom || c.custom_data?.name || `Contact #${c.id}`;
-              const company = c.custom_data?.company || '';
-              const status = c.custom_data?.statut || c.custom_data?.status;
-              return (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => onSelectContact && onSelectContact(c.id)}
-                >
-                  <div className={`w-8 h-8 rounded-full ${avatarColor(name)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                    {initials(name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{name}</p>
-                    {company && <p className="text-xs text-slate-400 truncate">{company}</p>}
-                  </div>
-                  {status && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[status] || 'bg-slate-100 text-slate-600'}`}>
-                      {status}
-                    </span>
-                  )}
-                  <span className="text-xs text-slate-400 flex-shrink-0">
-                    {new Date(c.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                  </span>
-                </div>
-              );
-            })}
-            {(!data?.recentContacts || data.recentContacts.length === 0) && (
-              <div className="text-center py-10 text-slate-400 text-sm">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                Aucun contact pour l'instant
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Urgent tasks */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Tâches urgentes</h2>
-            <button
-              onClick={() => onNavigate('tasks')}
-              className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-medium"
-            >
-              Voir toutes <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mb-3">
-                <Check className="w-6 h-6 text-emerald-500" />
-              </div>
-              <p className="text-sm font-medium text-slate-600">Tout est à jour !</p>
-              <p className="text-xs mt-1">Aucune tâche en retard</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-50">
-              {tasks.map(task => {
-                const today = new Date().toISOString().split('T')[0];
-                const isOverdue = task.due_date < today;
-                return (
-                  <div key={task.id} className="flex items-start gap-3 px-5 py-3">
-                    <button
-                      onClick={() => toggleTask(task)}
-                      className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isOverdue ? 'border-red-400 hover:bg-red-50' : 'border-amber-400 hover:bg-amber-50'}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800 truncate">{task.title}</p>
-                      <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500' : 'text-amber-600'}`}>
-                        {isOverdue ? 'En retard · ' : 'Aujourd\'hui · '}{task.due_date}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Pipeline par étape */}
-      {stageData.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
-          <h2 className="font-semibold text-slate-900 mb-4">Pipeline par étape</h2>
-          <div className="space-y-2.5">
-            {stageData.map(({ stage, count }) => (
-              <div key={stage} className="flex items-center gap-3">
-                <span className="text-xs text-slate-500 w-28 flex-shrink-0">{stage}</span>
-                <div className="flex-1 bg-slate-100 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${STAGE_COLORS[stage] || 'bg-indigo-400'}`}
-                    style={{ width: `${(count / maxCount) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-medium text-slate-700 w-6 text-right">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+  const { user }=useAuth();
+  const [data,setData]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const isAdmin=!user?.role || user.role==='admin';
+  const canContacts=isAdmin||!!user?.permissions?.contacts;
+  const canPlanning=isAdmin||(user?.permissions?.appointments_level && user.permissions.appointments_level!=='none');
+  const load=useCallback(async()=>{
+    setLoading(true);setError('');
+    const results=await Promise.allSettled([
+      api.getDashboard(),canContacts?api.getContacts():Promise.resolve(null),
+      canPlanning?api.getAppointments():Promise.resolve(null),
+    ]);
+    const dashboard=results[0].status==='fulfilled'?results[0].value:null;
+    const contacts=results[1].status==='fulfilled'?results[1].value:null;
+    const appointments=results[2].status==='fulfilled'?results[2].value:null;
+    setData({dashboard,contacts,appointments});
+    if(!dashboard&&!contacts)setError('Impossible de charger votre activité. Réessayez dans un instant.');
+    setLoading(false);
+  },[canContacts,canPlanning]);
+  useEffect(()=>{load();},[load]);
+  const clients=data?.contacts;
+  const dashboard=data?.dashboard;
+  const today=civil(new Date());
+  const nextWeek=new Date();nextWeek.setDate(nextWeek.getDate()+7);
+  const upcoming=(data?.appointments||[]).filter(a=>!['cancelled','refused'].includes(a.status)&&a.date>=today&&a.date<=civil(nextWeek)).sort((a,b)=>a.date.localeCompare(b.date)||a.start_time.localeCompare(b.start_time));
+  const recent=[...(clients||dashboard?.recentContacts||[])].sort((a,b)=>new Date(b.updated_at||b.created_at)-new Date(a.updated_at||a.created_at)).slice(0,7);
+  const count=status=>clients?clients.filter(c=>statusOf(c)===status).length:null;
+  const stats=[
+    {label:'Contacts',value:clients?.length??dashboard?.totalContacts,icon:Users,note:'Votre portefeuille clients',featured:true},
+    {label:'Leads à suivre',value:count('Lead'),icon:UserPlus,note:'Contacts au statut Lead'},
+    {label:'Clients',value:count('Client'),icon:BadgeCheck,note:'Contacts au statut Client'},
+    {label:'Rendez-vous',value:data?.appointments?upcoming.length:null,icon:CalendarDays,note:'Sur les 7 prochains jours'},
+  ];
+  return <div className="overview-page">
+    <div className="overview-heading">
+      <div><p className="page-eyebrow mb-3">{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p><h1 className="page-title">Vue d’ensemble</h1><p className="page-subtitle">Vos clients, votre activité. Tout simplement.</p></div>
+      {canContacts&&<button className="primary-action" onClick={()=>onNavigate('contacts')}><Users size={16}/>Voir les contacts</button>}
     </div>
-  );
+    {error&&<div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><AlertCircle size={17}/>{error}<button onClick={load} className="font-semibold underline">Réessayer</button></div>}
+    <div className="overview-metrics">{stats.map(({label,value,icon:Icon,note,featured})=><section key={label} className={`overview-metric ${featured?'is-featured':''}`}><h2 className="metric-label">{label}<Icon size={17} strokeWidth={1.6}/></h2><p className="metric-number" aria-busy={loading}>{loading?'—':value??'—'}</p><p className="metric-note">{note}</p></section>)}</div>
+    <div className="overview-columns">
+      <section className="surface-card">
+        <div className="surface-heading"><div><h2>Derniers contacts</h2><p>Les fiches récemment mises à jour</p></div>{canContacts&&<button className="text-action" onClick={()=>onNavigate('contacts')}>Tout voir</button>}</div>
+        {loading?<p role="status" className="empty-state">Chargement des contacts…</p>:recent.length?recent.map((client,index)=><button key={client.id} className="recent-client" onClick={()=>onSelectContact?.(client.id)} disabled={!canContacts}><span className={`client-monogram ${index%3===1?'is-warm':index%3===2?'is-green':''}`}>{initials(labelOf(client))}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm font-medium text-slate-900">{labelOf(client)}</strong><span className="mt-1 block truncate text-xs text-slate-400">{client.custom_data?.email||client.custom_data?.phone||client.custom_data?.ville||'Fiche client'}</span></span><span className={`client-status ${statusOf(client)==='Client'?'is-client':statusOf(client)==='Prospect'?'is-prospect':''}`}>{statusOf(client)}</span><span className="hidden min-w-12 text-right text-[11px] text-slate-400 xl:block">{displayDate(client.updated_at||client.created_at)}</span></button>):<p className="empty-state">Vos contacts apparaîtront ici dès leur création.</p>}
+      </section>
+      <div className="flex flex-col gap-6">
+        <section className="surface-card">
+          <div className="surface-heading"><div><h2>Votre agenda</h2><p>Les 7 prochains jours</p></div>{canPlanning&&<button className="text-action" onClick={()=>onNavigate('planning')}>Planning</button>}</div>
+          {loading?<p className="empty-state">Chargement de l’agenda…</p>:!data?.appointments?<p className="empty-state">L’agenda est indisponible actuellement.</p>:upcoming.length?upcoming.slice(0,4).map(appt=><button key={appt.id} onClick={()=>appt.contact_id&&canContacts?onSelectContact?.(appt.contact_id):onNavigate('planning')} className="flex w-full items-center gap-4 border-b border-slate-100 px-6 py-4 text-left last:border-0 hover:bg-slate-50"><span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-50"><strong className="text-base font-semibold leading-5">{Number(appt.date.slice(8,10))}</strong><span className="text-[11px] uppercase text-slate-400">{new Date(appt.date+'T12:00:00').toLocaleDateString('fr-FR',{month:'short'})}</span></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm font-medium">{appt.title||'Rendez-vous'}</strong><span className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-400"><Clock3 size={12}/>{appt.start_time.slice(0,5)} – {appt.end_time.slice(0,5)}{appt.status==='pending'?' · À confirmer':''}</span></span></button>):<div className="empty-state"><CalendarDays className="mx-auto mb-3 text-slate-300" size={28} strokeWidth={1.4}/><p>Aucun rendez-vous prévu.</p>{canPlanning&&<button className="text-action mt-3" onClick={()=>onNavigate('planning')}>Ouvrir le planning</button>}</div>}
+        </section>
+        <section className="surface-card"><div className="surface-heading"><div><h2>Vos relations clients</h2><p>Répartition par statut</p></div><Users size={17} className="text-slate-400"/></div><div className="space-y-4 p-6">{['Lead','Prospect','Client'].map((label,index)=>{const n=count(label);const width=clients?.length?n/clients.length*100:0;return <div key={label}><div className="mb-2 flex justify-between text-xs"><span className="text-slate-500">{label==='Lead'?'Leads':label==='Client'?'Clients':'Prospects'}</span><strong className="font-medium">{n??'—'}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${index===0?'bg-slate-800':index===1?'bg-[#a8b8d4]':'bg-[#a2c8b0]'}`} style={{width:width+'%'}}/></div></div>;})}</div></section>
+      </div>
+    </div>
+    <div className="mt-6 flex justify-end"><button onClick={load} disabled={loading} className="inline-flex min-h-10 items-center gap-2 text-xs text-slate-400 hover:text-slate-700"><RefreshCw size={13} className={loading?'animate-spin':''}/>Actualiser les données</button></div>
+  </div>;
 }

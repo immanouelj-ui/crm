@@ -960,9 +960,10 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
   }
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="contacts-workspace flex flex-col h-full relative">
+      <div className="contacts-heading"><div><h1 className="page-title">Contacts</h1><p className="page-subtitle">Vos relations clients, à portée de main.</p></div><span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500">{contacts.length} contact{contacts.length !== 1 ? 's' : ''}</span></div>
       {/* Toolbar */}
-      <div className="bg-white border-b border-slate-200 px-4 pt-3 pb-0 shadow-sm">
+      <div className="contacts-toolbar bg-white border-b border-slate-200 px-4 pt-3 pb-0 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap pb-3">
         {/* Search */}
         <div className="relative w-full sm:w-80">
@@ -1195,7 +1196,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto scrollbar-thin" onClick={() => { showColumnsMenu && setShowColumnsMenu(false); showSortMenu && setShowSortMenu(false); }}>
+      <div className="contacts-table-wrap flex-1 overflow-auto scrollbar-thin" onClick={() => { showColumnsMenu && setShowColumnsMenu(false); showSortMenu && setShowSortMenu(false); }}>
         <table className="w-full border-collapse text-sm" style={{ minWidth: '800px' }}>
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50 border-b border-slate-200">
@@ -1264,7 +1265,7 @@ export default function ContactsGrid({ selectedContact: externalSelectedContact,
       </div>
 
       {/* Status bar */}
-      <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between">
+      <div className="contacts-footer bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowNewContactModal(true)}

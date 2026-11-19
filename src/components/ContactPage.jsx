@@ -701,6 +701,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   const [appointments, setAppointments] = useState([]);
   const [installers, setInstallers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mobileSection, setMobileSection] = useState('info');
   const [showApptModal, setShowApptModal] = useState(false); // modal (topbar button)
   const [showMenu, setShowMenu] = useState(false);
   const [sendModal, setSendModal] = useState(null); // null | { type: 'email'|'whatsapp' }
@@ -803,10 +804,10 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
   const mainFields = visibleFields.filter(field => field.name !== 'notes' && !photoFields.includes(field));
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div className="client-workspace h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
 
       {/* ── Top bar ── */}
-      <div className="bg-white border-b border-slate-200 h-14 flex items-center px-3 md:px-6 gap-3 flex-shrink-0 z-10 shadow-sm overflow-x-auto scrollbar-thin">
+      <div className="client-topbar bg-white border-b border-slate-200 h-14 flex items-center px-3 md:px-6 gap-3 flex-shrink-0 z-10 shadow-sm overflow-x-auto scrollbar-thin">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mr-1"
@@ -905,7 +906,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
       </div>
 
       {/* ── Hero header ── */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5 flex-shrink-0">
+      <div className="client-hero bg-white border-b border-slate-200 px-8 py-5 flex-shrink-0">
         <div className="flex items-start gap-5">
           {/* Avatar */}
           <div className={`w-16 h-16 rounded-2xl ${avatarColor(name)} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0`}>
@@ -966,11 +967,14 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         </div>
       </div>
 
+      <div className="client-mobile-tabs" aria-label="Sections de la fiche client">
+        {[['info','Informations'],['activity','Activité'],['related','RDV & pièces']].map(([value,label])=><button key={value} type="button" aria-pressed={mobileSection===value} onClick={()=>setMobileSection(value)} className={mobileSection===value?'is-active':''}>{label}</button>)}
+      </div>
       {/* ── 3-column body (stacks vertically on mobile) ── */}
       <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col md:flex-row">
 
         {/* ── LEFT: Properties ── */}
-        <div className="w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:overflow-y-auto flex-shrink-0 px-5 py-5">
+        <div className={`client-sidebar w-full md:w-64 xl:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:overflow-y-auto flex-shrink-0 px-5 py-5 ${mobileSection === 'info' ? '' : 'hidden md:block'}`}>
 
           {canMessage && (
             <InstallerAssignment
@@ -1046,7 +1050,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         </div>
 
         {/* ── CENTER: Timeline ── */}
-        <div className="flex-1 md:overflow-y-auto px-4 md:px-8 py-6">
+        <div className={`client-timeline flex-1 min-w-0 md:overflow-y-auto px-4 md:px-8 py-6 ${mobileSection === 'activity' ? '' : 'hidden md:block'}`}>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Activité</p>
 
           {/* Composer */}
@@ -1109,7 +1113,7 @@ export default function ContactPage({ contactId, onBack, onNavigate, onNewBillin
         )}
 
         {/* ── RIGHT: Appointments, map and attachments ── */}
-        <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 bg-white md:overflow-y-auto flex-shrink-0 px-5 py-5">
+        <div className={`client-sidebar w-full md:w-72 xl:w-80 border-t md:border-t-0 md:border-l border-slate-200 bg-white md:overflow-y-auto flex-shrink-0 px-5 py-5 ${mobileSection === 'related' ? '' : 'hidden md:block'}`}>
 
           {/* RDV */}
           <div className="mb-6">

@@ -19,100 +19,33 @@ export default function Login({ onGoToRegister, onGoToForgot }) {
       const data = await api.login(email, password);
       login(data.token, data.user);
     } catch (err) {
-      setError('Identifiants incorrects. Verifiez votre email et mot de passe.');
+      setError('Impossible de vous connecter. Vérifiez vos identifiants ou réessayez.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-[#0f172a] flex-col justify-between p-12">
-        <div>
-          <div className="flex items-center gap-3 mb-16">
-            <span className="text-2xl font-bold text-white">Hakol</span>
-          </div>
-          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
-            Gerez vos relations<br />clients avec clarte.
-          </h1>
-          <p className="text-slate-400 text-lg leading-relaxed">
-            Une plateforme moderne pour suivre vos contacts, pipeline et taches.
-          </p>
-        </div>
-        <div className="space-y-4">
-          {[
-            { label: 'Contacts centralises', desc: 'Tous vos contacts en un seul endroit.' },
-            { label: 'Taches & Rappels', desc: 'Ne manquez jamais une relance importante.' },
-          ].map(item => (
-            <div key={item.label} className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-white text-sm font-medium">{item.label}</p>
-                <p className="text-slate-400 text-sm">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center bg-white p-8">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden mb-8 text-center">
-            <span className="text-2xl font-bold text-slate-900">Hakol</span>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-1">Connexion</h2>
-            <p className="text-slate-500 text-sm">Pas encore de compte ?{' '}
-              {onGoToRegister && <button onClick={onGoToRegister} className="text-indigo-600 hover:underline font-medium">Creer un compte</button>}
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="vous@exemple.fr" required
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all placeholder:text-slate-400" />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-slate-700">Mot de passe</label>
-                {onGoToForgot && (
-                  <button type="button" onClick={onGoToForgot} className="text-xs text-indigo-600 hover:underline">
-                    Mot de passe oublie ?
-                  </button>
-                )}
-              </div>
-              <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} value={password}
-                  onChange={e => setPassword(e.target.value)} placeholder="••••••••" required
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all placeholder:text-slate-400 pr-10" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading}
-              className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 mt-6">
-              {loading ? (<><Loader2 className="w-4 h-4 animate-spin" />Connexion...</>) : 'Se connecter'}
-            </button>
+    <div className="login-workspace">
+      <aside className="login-story">
+        <div className="flex items-center gap-3"><span className="brand-monogram">H<span/></span><span className="text-2xl font-semibold tracking-tight text-white">Hakol.</span></div>
+        <div className="login-story-content"><p className="mb-5 text-xs font-medium uppercase tracking-[.18em] text-slate-400">Votre espace professionnel</p><h1>Vos clients.<br/>Votre activité.<br/><span>Une vue claire.</span></h1><p className="mt-7 max-w-sm text-base leading-relaxed text-slate-400">Du premier contact à la dernière intervention, gardez le fil de votre activité.</p></div>
+        <div className="login-capabilities"><p>Contacts & rendez-vous</p><p>Devis & facturation</p><p>Comptabilité connectée</p></div>
+      </aside>
+      <main className="login-form-panel">
+        <div className="login-form-content">
+          <div className="mb-10 flex items-center gap-3 lg:hidden"><span className="brand-monogram">H<span/></span><span className="text-2xl font-semibold tracking-tight">Hakol.</span></div>
+          <p className="page-eyebrow mb-3">Bienvenue</p><h2 className="page-title">Connectez-vous<br/>à votre espace.</h2><p className="page-subtitle mb-8">Retrouvez vos clients et votre activité.</p>
+          {error&&<div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div><label htmlFor="login-email" className="mb-2 block text-sm font-medium text-slate-700">Adresse e-mail</label><input id="login-email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="vous@entreprise.fr" required className="login-input"/></div>
+            <div><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><label htmlFor="login-password" className="text-sm font-medium text-slate-700">Mot de passe</label>{onGoToForgot&&<button type="button" onClick={onGoToForgot} className="text-xs font-medium text-slate-500 hover:text-slate-900">Mot de passe oublié ?</button>}</div><div className="relative"><input id="login-password" autoComplete="current-password" type={showPassword?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Votre mot de passe" required className="login-input pr-12"/><button type="button" aria-label={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} aria-pressed={showPassword} onClick={()=>setShowPassword(!showPassword)} className="absolute right-2 top-1.5 flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700">{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></div>
+            <button type="submit" disabled={loading} className="primary-action mt-2 min-h-12 w-full disabled:opacity-60">{loading?<><Loader2 size={17} className="animate-spin"/>Connexion en cours…</>:'Se connecter'}</button>
           </form>
+          {onGoToRegister&&<p className="mt-8 text-center text-sm text-slate-400">Pas encore de compte ? <button type="button" onClick={onGoToRegister} className="font-medium text-slate-900 hover:underline">Créer un compte</button></p>}
         </div>
-      </div>
+        <p className="login-bottom">Hakol · Votre espace de travail</p>
+      </main>
     </div>
   );
 }

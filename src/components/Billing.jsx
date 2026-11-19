@@ -977,9 +977,10 @@ export default function Billing({ pendingDoc, onPendingDocConsumed }) {
   );
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="billing-workspace flex flex-col h-full bg-slate-50">
+      <div className="billing-heading"><h1 className="page-title">Devis & factures</h1><p className="page-subtitle">Vos documents, de la proposition au règlement.</p></div>
       {/* Toolbar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-3 flex-wrap">
+      <div className="billing-toolbar bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Numéro, client…"

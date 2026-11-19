@@ -451,9 +451,10 @@ export default function Planning({ initialDate }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="planning-workspace flex flex-col h-full">
+      <div className="planning-heading"><h1 className="page-title">Planning</h1><p className="page-subtitle">Une vision claire de vos rendez-vous et de vos installations.</p></div>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between gap-4">
+      <div className="planning-toolbar bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button onClick={prevWeek} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft size={18}/></button>
           <button onClick={goToday} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Aujourd'hui</button>
@@ -519,7 +520,7 @@ export default function Planning({ initialDate }) {
       )}
 
       {/* Calendrier */}
-      <div className="flex-1 overflow-auto">
+      <div className="calendar-grid flex-1 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">Chargement…</div>
         ) : (

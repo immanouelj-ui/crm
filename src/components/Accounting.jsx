@@ -43,6 +43,7 @@ export default function Accounting() {
         headers: { Authorization: 'Bearer ' + localStorage.getItem('crm_token') },
         signal: controller.signal,
       });
+      if (response.status === 401) { localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user'); window.location.assign('/'); return; }
       if (response.status === 404) throw new Error('La lecture des comptes Qonto doit encore être installée sur le backend Fly.io.');
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || 'Impossible de lire les données Qonto.');
@@ -123,7 +124,7 @@ export default function Accounting() {
   const inputClass = 'min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700';
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 p-4 pb-12 md:p-7">
+    <div className="accounting-workspace mx-auto max-w-7xl space-y-5 p-4 pb-12 md:p-7">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-slate-900"><Landmark className="h-6 w-6 text-indigo-600" /> Comptabilité Qonto</h1>
@@ -141,7 +142,7 @@ export default function Accounting() {
       {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>{error}</p></div>}
       {data && ['transactions', 'invoices', 'quotes'].filter(key => !data[key]?.available).map(key => <div key={key} role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{key === 'transactions' ? 'Opérations bancaires' : key === 'invoices' ? 'Factures Qonto' : 'Devis Qonto'} : {data[key]?.error || 'Lecture indisponible.'}</div>)}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="accounting-metrics grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map(({ label, amount, icon: Icon, note }) => <section key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="flex items-center justify-between gap-2 text-sm text-slate-600">{label}<Icon className="h-4 w-4 shrink-0 text-indigo-500" /></h2><p className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">{formatMoney(amount)}</p><p className="mt-2 text-xs text-slate-500">{note}</p></section>)}
       </div>
 
